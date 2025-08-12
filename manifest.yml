@@ -1,0 +1,19 @@
+modules:
+  jira:globalPage:
+    - key: ai-permission-auditor-hello-world-page
+      resource: main
+      resolver:
+        function: resolver
+      title: AI Permission Auditor
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: main
+    path: static/hello-world/build
+app:
+  runtime:
+    name: nodejs22.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/2fec7975-dd7d-467c-94e5-c450415fc460
