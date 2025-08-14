@@ -77,20 +77,9 @@ export default function App() {
             const globalPerms = result.permissions.globalPermissions
 
             const projectPerms = result.permissions.projectPermissions
-              ? Object.entries(result.permissions.projectPermissions)
-                  .filter(([_, val]) => val.havePermission)
-                  .map(([perm]) => perm)
-              : [];
-
-            console.log('Project Permissions for user:', result.user.displayName, result.permissions.projectPermissions , Object.entries(result.permissions.projectPermissions));
-
-
-
-            const allProjectPerms = Object.keys(
-              result.permissions.projectPermissions || {}
-            );
-
-
+            const allProjectPermissions = projectPerms.map((perm) => perm.permission);
+            console.log("Project Permissions", allProjectPermissions);
+           
             return (
               <React.Fragment key={idx}>
                 <tr>
@@ -115,9 +104,7 @@ export default function App() {
                     )}
                   </td>
                   <td>
-                    {projectPerms.length > 0 ? (
-                      projectPerms.join(", ")
-                    ) : (
+                    {(
                       <a
                         href="#"
                         onClick={(e) => {
@@ -158,8 +145,8 @@ export default function App() {
                     <td colSpan="4" style={{ background: "#f9f9f9" }}>
                       <strong>All Project Permissions:</strong>
                       <ul>
-                        {allProjectPerms.length > 0 ? (
-                          allProjectPerms.map((perm, i) => <li key={i}>{perm}</li>)
+                        {allProjectPermissions.length > 0 ? (
+                          allProjectPermissions.map((perm, i) => <li key={i}>{perm}</li>)
                         ) : (
                           <li>No permissions found</li>
                         )}
