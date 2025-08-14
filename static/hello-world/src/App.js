@@ -5,6 +5,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [auditData, setAuditData] = useState(null);
   const [error, setError] = useState(null);
+  const [expandedRow, setExpandedRow] = useState(null); // Track which row is expanded
 
   useEffect(() => {
     async function fetchAudit() {
@@ -30,7 +31,6 @@ export default function App() {
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p style={{ color: "red" }}>Error: {error}</p>;
-
   if (!auditData) return null;
 
   return (
@@ -75,10 +75,6 @@ export default function App() {
         <tbody>
           {auditData.permissionResults.map((result, idx) => {
             const globalPerms = result.permissions.globalPermissions
-              ? Object.entries(result.permissions.globalPermissions)
-                  .filter(([_, val]) => val.havePermission)
-                  .map(([perm]) => perm)
-              : [];
 
             const projectPerms = result.permissions.projectPermissions
               ? Object.entries(result.permissions.projectPermissions)
@@ -86,13 +82,92 @@ export default function App() {
                   .map(([perm]) => perm)
               : [];
 
+            console.log('Project Permissions for user:', result.user.displayName, result.permissions.projectPermissions , Object.entries(result.permissions.projectPermissions));
+
+
+
+            const allProjectPerms = Object.keys(
+              result.permissions.projectPermissions || {}
+            );
+
+
             return (
-              <tr key={idx}>
-                <td>{result.user.displayName}</td>
-                <td>{result.project.displayName}</td>
-                <td>{globalPerms.join(", ") || "None"}</td>
-                <td>{projectPerms.join(", ") || "None"}</td>
-              </tr>
+              <React.Fragment key={idx}>
+                <tr>
+                  <td>{result.user.displayName}</td>
+                  <td>{result.project.displayName}</td>
+                  <td>
+                    {globalPerms.length > 0 && (
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setExpandedRow(
+                            expandedRow === `global-${idx}`
+                              ? null
+                              : `global-${idx}`
+                          );
+                        }}
+                        style={{ color: "blue", cursor: "pointer" }}
+                      >
+                        View Global Permissions
+                      </a>
+                    )}
+                  </td>
+                  <td>
+                    {projectPerms.length > 0 ? (
+                      projectPerms.join(", ")
+                    ) : (
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setExpandedRow(
+                            expandedRow === `project-${idx}`
+                              ? null
+                              : `project-${idx}`
+                          );
+                        }}
+                        style={{ color: "blue", cursor: "pointer" }}
+                      >
+                        View Project Permissions
+                      </a>
+                    )}
+                  </td>
+                </tr>
+
+                {/* Expanded Global Permissions */}
+                {expandedRow === `global-${idx}` && (
+                  <tr>
+                    <td colSpan="4" style={{ background: "#f9f9f9" }}>
+                      <strong>All Global Permissions:</strong>
+                      <ul>
+                        {globalPerms.length > 0 ? (
+                          globalPerms.map((perm, i) => <li key={i}>{perm}</li>)
+                        ) : (
+                          <li>No permissions found</li>
+                        )}
+                      </ul>
+                    </td>
+                  </tr>
+                )}
+
+                {/* Expanded Project Permissions */}
+                {expandedRow === `project-${idx}` && (
+                  <tr>
+                    <td colSpan="4" style={{ background: "#f9f9f9" }}>
+                      <strong>All Project Permissions:</strong>
+                      <ul>
+                        {allProjectPerms.length > 0 ? (
+                          allProjectPerms.map((perm, i) => <li key={i}>{perm}</li>)
+                        ) : (
+                          <li>No permissions found</li>
+                        )}
+                      </ul>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             );
           })}
         </tbody>
