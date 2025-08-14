@@ -78,7 +78,6 @@ export default function App() {
 
             const projectPerms = result.permissions.projectPermissions
             const allProjectPermissions = projectPerms.map((perm) => perm.permission);
-            console.log("Project Permissions", allProjectPermissions);
            
             return (
               <React.Fragment key={idx}>
