@@ -8,16 +8,17 @@ resolver.define('runAudit', async () => {
   try {
     const allUsers = await getAllJiraUsers();
     const allProjects = await getAllJiraProjects();
-
+    const allPermissions = await getAllPermissions();
     const permissionResults = await checkPermissionsForAll(allUsers, allProjects);
 
-    return { 
-      success: true, 
-      data: { 
-        allProjects, 
-        allUsers, 
-        permissionResults 
-      } 
+    return {
+      success: true,
+      data: {
+        allProjects,
+        allUsers,
+        allPermissions,
+        permissionResults
+      }
     };
   } catch (error) {
     console.error('Audit failed:', error);
@@ -97,6 +98,37 @@ async function getAllJiraProjects() {
   return projects;
 }
 
+
+async function getAllPermissions() {
+  const response = await api.asUser().requestJira(
+    route`/rest/api/3/permissions`,
+    { headers: { "Accept": "application/json" } }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch permissions: ${response.status} - ${await response.text()}`
+    );
+  }
+
+  const data = await response.json();
+
+  const allPermissions = Object.values(data.permissions);
+
+  // Only return keys grouped by type
+  const groupedPermissionKeys = {
+    global: allPermissions
+      .filter((perm) => perm.type === "GLOBAL")
+      .map((perm) => perm.key),
+    project: allPermissions
+      .filter((perm) => perm.type === "PROJECT")
+      .map((perm) => perm.key),
+  };
+
+  return groupedPermissionKeys;
+}
+
+
 // Check permissions for all user/project combinations
 async function checkPermissionsForAll(users, projects) {
   const results = [];
@@ -105,72 +137,72 @@ async function checkPermissionsForAll(users, projects) {
     for (const project of projects) {
       const bodyData = {
         accountId: user.accountId,
-       globalPermissions: [
-  "ADMINISTER",
-  "BULK_CHANGE",
-  "CREATE_PROJECT",
-  "CREATE_SHARED_OBJECTS",
-  "MANAGE_GROUP_FILTER_SUBSCRIPTIONS",
-  "SYSTEM_ADMIN",
-  "USER_PICKER",
-  "com.atlassian.atlas.jira__jira-townsquare-link-unconnected-issue-glance-view-permission",
-  "io.tempo.jira__tempo-account-administrator",
-  "io.tempo.jira__tempo-administrator",
-  "io.tempo.jira__tempo-planner-access",
-  "io.tempo.jira__tempo-projects-access",
-  "io.tempo.jira__tempo-projects-administrator",
-  "io.tempo.jira__tempo-projects-viewer",
-  "io.tempo.jira__tempo-rate-administrator",
-  "io.tempo.jira__tempo-sage-access",
-  "io.tempo.jira__tempo-team-administrator",
-  "io.tempo.jira__tempo-timesheets-access"
-],
+        globalPermissions: [
+          "ADMINISTER",
+          "BULK_CHANGE",
+          "CREATE_PROJECT",
+          "CREATE_SHARED_OBJECTS",
+          "MANAGE_GROUP_FILTER_SUBSCRIPTIONS",
+          "SYSTEM_ADMIN",
+          "USER_PICKER",
+          "com.atlassian.atlas.jira__jira-townsquare-link-unconnected-issue-glance-view-permission",
+          "io.tempo.jira__tempo-account-administrator",
+          "io.tempo.jira__tempo-administrator",
+          "io.tempo.jira__tempo-planner-access",
+          "io.tempo.jira__tempo-projects-access",
+          "io.tempo.jira__tempo-projects-administrator",
+          "io.tempo.jira__tempo-projects-viewer",
+          "io.tempo.jira__tempo-rate-administrator",
+          "io.tempo.jira__tempo-sage-access",
+          "io.tempo.jira__tempo-team-administrator",
+          "io.tempo.jira__tempo-timesheets-access"
+        ],
         projectPermissions: [
           {
             permissions: [
-  "ADD_COMMENTS",
-  "ADMINISTER_PROJECTS",
-  "ASSIGNABLE_USER",
-  "ASSIGN_ISSUES",
-  "BROWSE_PROJECTS",
-  "CLOSE_ISSUES",
-  "CREATE_ATTACHMENTS",
-  "CREATE_ISSUES",
-  "DELETE_ALL_ATTACHMENTS",
-  "DELETE_ALL_COMMENTS",
-  "DELETE_ALL_WORKLOGS",
-  "DELETE_ISSUES",
-  "DELETE_OWN_ATTACHMENTS",
-  "DELETE_OWN_COMMENTS",
-  "DELETE_OWN_WORKLOGS",
-  "EDIT_ALL_COMMENTS",
-  "EDIT_ALL_WORKLOGS",
-  "EDIT_ISSUES",
-  "EDIT_ISSUE_LAYOUT",
-  "EDIT_OWN_COMMENTS",
-  "EDIT_OWN_WORKLOGS",
-  "EDIT_WORKFLOW",
-  "LINK_ISSUES",
-  "MANAGE_SPRINTS_PERMISSION",
-  "MANAGE_WATCHERS",
-  "MODIFY_REPORTER",
-  "MOVE_ISSUES",
-  "RESOLVE_ISSUES",
-  "SCHEDULE_ISSUES",
-  "SERVICEDESK_AGENT",
-  "SET_ISSUE_SECURITY",
-  "TRANSITION_ISSUES",
-  "UNARCHIVE_ISSUES",
-  "VIEW_AGGREGATED_DATA",
-  "VIEW_DEV_TOOLS",
-  "VIEW_READONLY_WORKFLOW",
-  "VIEW_VOTERS_AND_WATCHERS",
-  "WORK_ON_ISSUES",
-  "io.tempo.jira__log-work-for-others",
-  "io.tempo.jira__set-billable-hours",
-  "io.tempo.jira__view-all-worklogs",
-  "io.tempo.jira__view-issue-hours"
-],
+              "ADD_COMMENTS",
+              "ADMINISTER_PROJECTS",
+              "ASSIGNABLE_USER",
+              "ASSIGN_ISSUES",
+              "BROWSE_PROJECTS",
+              "CLOSE_ISSUES",
+              "CREATE_ATTACHMENTS",
+              "CREATE_ISSUES",
+              "DELETE_ALL_ATTACHMENTS",
+              "DELETE_ALL_COMMENTS",
+              "DELETE_ALL_WORKLOGS",
+              "DELETE_ISSUES",
+              "DELETE_OWN_ATTACHMENTS",
+              "DELETE_OWN_COMMENTS",
+              "DELETE_OWN_WORKLOGS",
+              "EDIT_ALL_COMMENTS",
+              "EDIT_ALL_WORKLOGS",
+              "EDIT_ISSUES",
+              "EDIT_ISSUE_LAYOUT",
+              "EDIT_OWN_COMMENTS",
+              "EDIT_OWN_WORKLOGS",
+              "EDIT_WORKFLOW",
+              "LINK_ISSUES",
+              "MANAGE_SPRINTS_PERMISSION",
+              "MANAGE_WATCHERS",
+              "MODIFY_REPORTER",
+              "MOVE_ISSUES",
+              "RESOLVE_ISSUES",
+              "SCHEDULE_ISSUES",
+              "SERVICEDESK_AGENT",
+              "SET_ISSUE_SECURITY",
+              "TRANSITION_ISSUES",
+              "UNARCHIVE_ISSUES",
+              "VIEW_AGGREGATED_DATA",
+              "VIEW_DEV_TOOLS",
+              "VIEW_READONLY_WORKFLOW",
+              "VIEW_VOTERS_AND_WATCHERS",
+              "WORK_ON_ISSUES",
+              "io.tempo.jira__log-work-for-others",
+              "io.tempo.jira__set-billable-hours",
+              "io.tempo.jira__view-all-worklogs",
+              "io.tempo.jira__view-issue-hours"
+            ],
             projects: [parseInt(project.id)]
           }
         ]
@@ -180,7 +212,7 @@ async function checkPermissionsForAll(users, projects) {
         route`/rest/api/3/permissions/check`,
         {
           method: 'POST',
-          headers: { 
+          headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
           },
