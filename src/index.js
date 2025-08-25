@@ -189,7 +189,6 @@ async function checkPermissionsForAll(users, projects) {
               "MOVE_ISSUES",
               "RESOLVE_ISSUES",
               "SCHEDULE_ISSUES",
-              "SERVICEDESK_AGENT",
               "SET_ISSUE_SECURITY",
               "TRANSITION_ISSUES",
               "UNARCHIVE_ISSUES",
@@ -208,33 +207,44 @@ async function checkPermissionsForAll(users, projects) {
         ]
       };
 
-      const res = await api.asApp().requestJira(
-        route`/rest/api/3/permissions/check`,
-        {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(bodyData)
-        }
-      );
+    try {
+  const res = await api.asApp().requestJira(
+    route`/rest/api/3/permissions/check`,
+    {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(bodyData)
+    }
+  );
 
-      if (res.ok) {
-        const json = await res.json();
-        console.log('permission check result:', json);
-        results.push({
-          user: { accountId: user.accountId, displayName: user.displayName },
-          project: { id: project.id, key: project.key, displayName: project.displayName },
-          permissions: json
-        });
-      } else {
-        console.error(`Permission check failed for user ${user.accountId} project ${project.id}`);
-      }
+  if (res.ok) {
+    const json = await res.json();
+    console.log('permission check result:', json);
+    results.push({
+      user: { accountId: user.accountId, displayName: user.displayName },
+      project: { id: project.id, key: project.key, displayName: project.displayName },
+      permissions: json
+    });
+  } else {
+    console.error(
+      `Permission check failed for user ${user.accountId} in project ${project.id} - ${res.status} ${res.statusText}`
+    );
+    console.error(await res.text()); // print error details
+  }
+} catch (err) {
+  console.error(
+    `Error checking permissions for ${user.accountId} in project ${project.id}:`,
+    err
+  );
+}
+
     }
   }
-
   return results;
 }
+
 
 export const handler = resolver.getDefinitions();
