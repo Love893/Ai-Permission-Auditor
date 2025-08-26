@@ -8,31 +8,35 @@ resolver.define('runAudit', async () => {
   try {
     const allUsers = await getAllJiraUsers();
     const allProjects = await getAllJiraProjects();
-    const auditLogRecords = await getAuditLog();
+    // const auditLogRecords = await getAuditLog();
+const projectPermissionSchemes = await getAllProjectPermissionSchemes(allProjects, allUsers);
+   const allPermissions = await getAllPermissions();
 
-    const matchedAuditRecords = auditLogRecords
-      .filter(record =>
-        allUsers.some(user => user.accountId === record.authorAccountId && user.accountType === "atlassian")
-      )
-      .map(record => {
-        const user = allUsers.find(u => u.accountId === record.authorAccountId);
-        return {
-          accountId: user?.accountId || record.authorAccountId,
-          displayName: user?.displayName || 'Unknown User',
-          activities: record?.summary || record?.eventSource || 'No activity details',
-          rawRecord: record
-        };
-      });
+    // const matchedAuditRecords = auditLogRecords
+    //   .filter(record =>
+    //     allUsers.some(user => user.accountId === record.authorAccountId && user.accountType === "atlassian")
+    //   )
+    //   .map(record => {
+    //     const user = allUsers.find(u => u.accountId === record.authorAccountId);
+    //     return {
+    //       accountId: user?.accountId || record.authorAccountId,
+    //       displayName: user?.displayName || 'Unknown User',
+    //       activities: record?.summary || record?.eventSource || 'No activity details',
+    //       rawRecord: record
+    //     };
+    //   });
 
-    const permissionResults = await checkPermissionsForAll(allUsers, allProjects);
+    // const permissionResults = await checkPermissionsForAll(allUsers, allProjects);
 
     return {
       success: true,
       data: {
         allProjects,
         allUsers,
-        matchedAuditRecords,
-        permissionResults
+        allPermissions,
+        projectPermissionSchemes,   
+        // matchedAuditRecords,
+        // permissionResults
       }
     };
   } catch (error) {
@@ -153,14 +157,13 @@ async function getAllPermissions() {
 
 
 // Check permissions for all user/project combinations
-async function checkPermissionsForAll(users, projects) {
+async function checkGlobalPermissionsForAll(users) {
   const results = [];
 
   for (const user of users) {
-    for (const project of projects) {
-      const bodyData = {
-        accountId: user.accountId,
-        globalPermissions: [
+    const bodyData = {
+      accountId: user.accountId,
+       globalPermissions: [
           "ADMINISTER",
           "BULK_CHANGE",
           "CREATE_PROJECT",
@@ -180,81 +183,159 @@ async function checkPermissionsForAll(users, projects) {
           "io.tempo.jira__tempo-team-administrator",
           "io.tempo.jira__tempo-timesheets-access"
         ],
-        projectPermissions: [
-          {
-            permissions: [
-              "ADD_COMMENTS",
-              "ADMINISTER_PROJECTS",
-              "ASSIGNABLE_USER",
-              "ASSIGN_ISSUES",
-              "BROWSE_PROJECTS",
-              "CLOSE_ISSUES",
-              "CREATE_ATTACHMENTS",
-              "CREATE_ISSUES",
-              "DELETE_ALL_ATTACHMENTS",
-              "DELETE_ALL_COMMENTS",
-              "DELETE_ALL_WORKLOGS",
-              "DELETE_ISSUES",
-              "DELETE_OWN_ATTACHMENTS",
-              "DELETE_OWN_COMMENTS",
-              "DELETE_OWN_WORKLOGS",
-              "EDIT_ALL_COMMENTS",
-              "EDIT_ALL_WORKLOGS",
-              "EDIT_ISSUES",
-              "EDIT_ISSUE_LAYOUT",
-              "EDIT_OWN_COMMENTS",
-              "EDIT_OWN_WORKLOGS",
-              "EDIT_WORKFLOW",
-              "LINK_ISSUES",
-              "MANAGE_SPRINTS_PERMISSION",
-              "MANAGE_WATCHERS",
-              "MODIFY_REPORTER",
-              "MOVE_ISSUES",
-              "RESOLVE_ISSUES",
-              "SCHEDULE_ISSUES",
-              "SERVICEDESK_AGENT",
-              "SET_ISSUE_SECURITY",
-              "TRANSITION_ISSUES",
-              "UNARCHIVE_ISSUES",
-              "VIEW_AGGREGATED_DATA",
-              "VIEW_DEV_TOOLS",
-              "VIEW_READONLY_WORKFLOW",
-              "VIEW_VOTERS_AND_WATCHERS",
-              "WORK_ON_ISSUES",
-              "io.tempo.jira__log-work-for-others",
-              "io.tempo.jira__set-billable-hours",
-              "io.tempo.jira__view-all-worklogs",
-              "io.tempo.jira__view-issue-hours"
-            ],
-            projects: [parseInt(project.id)]
-          }
-        ]
-      };
 
-      const res = await api.asApp().requestJira(
-        route`/rest/api/3/permissions/check`,
-        {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(bodyData)
-        }
-      );
+    };
 
-      if (res.ok) {
-        const json = await res.json();
-        results.push({
-          user: { accountId: user.accountId, displayName: user.displayName },
-          project: { id: project.id, key: project.key, displayName: project.displayName },
-          permissions: json
-        });
+    const res = await api.asApp().requestJira(
+      route`/rest/api/3/permissions/check`,
+      {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(bodyData)
       }
+    );
+
+    if (res.ok) {
+      const json = await res.json();
+      results.push({
+        user: { accountId: user.accountId, displayName: user.displayName },
+        permissions: json.globalPermissions || {}
+      });
     }
   }
 
   return results;
 }
+
+
+// Fetch all project permission schemes with role users + groups enrichment
+async function getAllProjectPermissionSchemes(projects, users) {
+  // ✅ compute global permissions ONCE
+  const globalPermissionsData = await checkGlobalPermissionsForAll(users);
+
+  const groupedPermissions = {};
+  globalPermissionsData.forEach((entry) => {
+    Object.entries(entry.permissions).forEach(([perm, val]) => {
+      if (val.havePermission) {
+        if (!groupedPermissions[perm]) groupedPermissions[perm] = [];
+        groupedPermissions[perm].push({
+          accountId: entry.user.accountId,
+          displayName: entry.user.displayName,
+          riskLevel: "low"
+        });
+      }
+    });
+  });
+
+  const globalPermissions = Object.keys(groupedPermissions).map((perm) => ({
+    permission: perm,
+    users: groupedPermissions[perm],
+  }));
+
+  // 🔹 now build project-specific schemes
+  const schemePromises = projects.map(async (project) => {
+    const scheme = await getProjectPermissionScheme(project.id);
+    const roleDetails = await getRoleIdScheme(project.id);
+
+    const roleUsersDetails = await Promise.all(
+      roleDetails.map(async (role) => {
+        const members = await getRoleUsersScheme(project.id, role.id);
+
+        const enrichedActors = await Promise.all(
+          (members.actors || []).map(async (actor) => {
+            const accountId = actor.actorUser?.accountId;
+            let groups = [];
+
+            if (accountId) {
+              const groupsResp = await getGroupsOnAccId(accountId);
+              groups = groupsResp ? groupsResp.map((g) => g.name) : [];
+            }
+
+            return {
+              ...actor,
+              actorUser: { ...actor.actorUser, groups },
+            };
+          })
+        );
+
+        return {
+          roleId: role.id,
+          roleName: role.name,
+          members: { ...members, actors: enrichedActors },
+        };
+      })
+    );
+
+    scheme.roleUsersDetails = roleUsersDetails;
+
+    return {
+      projectId: project.id,
+      projectKey: project.key,
+      scheme,
+      globalPermissions, // ✅ attach the same globalPermissions here
+    };
+  });
+
+  return Promise.all(schemePromises);
+}
+
+
+
+
+// Fetch permission scheme for a single project
+async function getProjectPermissionScheme(projectKeyOrId) {
+  const response = await api.asApp().requestJira(
+    route`/rest/api/3/project/${projectKeyOrId}/permissionscheme`,
+    { headers: { "Accept": "application/json" } }
+  );
+  if (!response.ok) {
+    console.error(`Error fetching permission scheme for ${projectKeyOrId}: ${response.status} - ${await response.text()}`);
+    return null;
+  }
+  return await response.json();
+}
+
+// Fetch role details (just to get IDs & names)
+async function getRoleIdScheme(projectKeyOrId) {
+  const response = await api.asApp().requestJira(
+    route`/rest/api/3/project/${projectKeyOrId}/roledetails`,
+    { headers: { "Accept": "application/json" } }
+  );
+  if (!response.ok) {
+    console.error(`Error fetching role details for ${projectKeyOrId}: ${response.status} - ${await response.text()}`);
+    return [];
+  }
+  return await response.json(); 
+}
+
+// Fetch members of a specific role
+async function getRoleUsersScheme(projectKeyOrId, roleId) {
+  const response = await api.asApp().requestJira(
+    route`/rest/api/3/project/${projectKeyOrId}/role/${roleId}`,
+    { headers: { "Accept": "application/json" } }
+  );
+  if (!response.ok) {
+    console.error(`Error fetching role users for project ${projectKeyOrId}, role ${roleId}: ${response.status} - ${await response.text()}`);
+    return null;
+  }
+  return await response.json(); 
+}
+
+// Fetch groups based on Account ID
+async function getGroupsOnAccId(accountId) {
+  const response = await api.asApp().requestJira(
+    route`/rest/api/3/user/groups?accountId=${accountId}`,
+    { headers: { "Accept": "application/json" } }
+  );
+  if (!response.ok) {
+    console.error(`Error fetching role users for project ${projectKeyOrId}, role ${roleId}: ${response.status} - ${await response.text()}`);
+    return null;
+  }
+  return await response.json(); 
+}
+
 
 export const handler = resolver.getDefinitions();
