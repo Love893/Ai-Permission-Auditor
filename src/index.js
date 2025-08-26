@@ -9,8 +9,8 @@ resolver.define('runAudit', async () => {
     const allUsers = await getAllJiraUsers();
     const allProjects = await getAllJiraProjects();
     // const auditLogRecords = await getAuditLog();
-const projectPermissionSchemes = await getAllProjectPermissionSchemes(allProjects, allUsers);
-   const allPermissions = await getAllPermissions();
+    const allPermissions = await getAllPermissions();
+    const projectPermissionSchemes = await getAllProjectPermissionSchemes(allProjects, allUsers, allPermissions);
 
     // const matchedAuditRecords = auditLogRecords
     //   .filter(record =>
@@ -27,16 +27,12 @@ const projectPermissionSchemes = await getAllProjectPermissionSchemes(allProject
     //   });
 
     // const permissionResults = await checkPermissionsForAll(allUsers, allProjects);
+    
 
     return {
       success: true,
       data: {
-        allProjects,
-        allUsers,
-        allPermissions,
         projectPermissionSchemes,   
-        // matchedAuditRecords,
-        // permissionResults
       }
     };
   } catch (error) {
@@ -45,19 +41,7 @@ const projectPermissionSchemes = await getAllProjectPermissionSchemes(allProject
   }
 });
 
-// ---- Helpers ----
-async function getAuditLog() {
-  const response = await api.asApp().requestJira(
-    route`/rest/api/3/auditing/record?limit=100`,
-    { headers: { "Accept": "application/json" } }
-  );
-  if (!response.ok) {
-    throw new Error(`Failed to fetch audit logs: ${response.status} - ${await response.text()}`);
-  }
-  const data = await response.json();
-  return data.records || [];
-}
-// --- Fetch all Jira users ---
+// // Fetch all users
 async function getAllJiraUsers() {
   const users = [];
   let startAt = 0;
@@ -121,7 +105,6 @@ async function getAllJiraProjects() {
     projects.push(...filteredProjects);
     startAt += maxResults;
   }
-
   return projects;
 }
 
@@ -152,88 +135,53 @@ async function getAllPermissions() {
       .map((perm) => perm.key),
   };
 
+  // console.log("groupedPermission keys global ***:::",groupedPermissionKeys.global)
+
   return groupedPermissionKeys;
 }
 
 
 // Check permissions for all user/project combinations
-async function checkGlobalPermissionsForAll(users) {
+async function checkGlobalPermissionsForAll(users, groupedPermissionKeys) {
   const results = [];
 
   for (const user of users) {
-    const bodyData = {
-      accountId: user.accountId,
-       globalPermissions: [
-          "ADMINISTER",
-          "BULK_CHANGE",
-          "CREATE_PROJECT",
-          "CREATE_SHARED_OBJECTS",
-          "MANAGE_GROUP_FILTER_SUBSCRIPTIONS",
-          "SYSTEM_ADMIN",
-          "USER_PICKER",
-          "com.atlassian.atlas.jira__jira-townsquare-link-unconnected-issue-glance-view-permission",
-          "io.tempo.jira__tempo-account-administrator",
-          "io.tempo.jira__tempo-administrator",
-          "io.tempo.jira__tempo-planner-access",
-          "io.tempo.jira__tempo-projects-access",
-          "io.tempo.jira__tempo-projects-administrator",
-          "io.tempo.jira__tempo-projects-viewer",
-          "io.tempo.jira__tempo-rate-administrator",
-          "io.tempo.jira__tempo-sage-access",
-          "io.tempo.jira__tempo-team-administrator",
-          "io.tempo.jira__tempo-timesheets-access"
-        ],
+    try {
+      const res = await api.asUser().requestJira(
+  route`/rest/api/3/permissions/check`,
+  {
+    method: 'POST',
+    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ globalPermissions: groupedPermissionKeys.global })
+  }
+);
 
-    };
 
-    const res = await api.asApp().requestJira(
-      route`/rest/api/3/permissions/check`,
-      {
-        method: "POST",
-        headers: {
-          "Accept": "application/json",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(bodyData)
+      if (res.ok) {
+        const json = await res.json();
+        results.push({
+          user: { accountId: user.accountId, displayName: user.displayName },
+          permissions: json.globalPermissions
+        });
+      } else {
+        console.error(
+          `Permission check failed for user ${user.accountId} - ${res.status} ${res.statusText}`
+        );
+        console.error(await res.text());
       }
-    );
-
-    if (res.ok) {
-      const json = await res.json();
-      results.push({
-        user: { accountId: user.accountId, displayName: user.displayName },
-        permissions: json.globalPermissions || {}
-      });
+    } catch (err) {
+      console.error(`Error checking global permissions for ${user.accountId}:`, err);
     }
   }
-
   return results;
 }
 
 
+
 // Fetch all project permission schemes with role users + groups enrichment
-async function getAllProjectPermissionSchemes(projects, users) {
-  // ✅ compute global permissions ONCE
-  const globalPermissionsData = await checkGlobalPermissionsForAll(users);
-
-  const groupedPermissions = {};
-  globalPermissionsData.forEach((entry) => {
-    Object.entries(entry.permissions).forEach(([perm, val]) => {
-      if (val.havePermission) {
-        if (!groupedPermissions[perm]) groupedPermissions[perm] = [];
-        groupedPermissions[perm].push({
-          accountId: entry.user.accountId,
-          displayName: entry.user.displayName,
-          riskLevel: "low"
-        });
-      }
-    });
-  });
-
-  const globalPermissions = Object.keys(groupedPermissions).map((perm) => ({
-    permission: perm,
-    users: groupedPermissions[perm],
-  }));
+async function getAllProjectPermissionSchemes(projects, users, permissions) {
+// compute global permissions once
+const globalPermissionsData = await checkGlobalPermissionsForAll(users, permissions);
 
   // 🔹 now build project-specific schemes
   const schemePromises = projects.map(async (project) => {
@@ -275,7 +223,7 @@ async function getAllProjectPermissionSchemes(projects, users) {
       projectId: project.id,
       projectKey: project.key,
       scheme,
-      globalPermissions, // ✅ attach the same globalPermissions here
+      globalPermissionsData, 
     };
   });
 
@@ -289,7 +237,7 @@ async function getAllProjectPermissionSchemes(projects, users) {
 async function getProjectPermissionScheme(projectKeyOrId) {
   const response = await api.asApp().requestJira(
     route`/rest/api/3/project/${projectKeyOrId}/permissionscheme`,
-    { headers: { "Accept": "application/json" } }
+    { headers: { "Accept": "application/json" }}
   );
   if (!response.ok) {
     console.error(`Error fetching permission scheme for ${projectKeyOrId}: ${response.status} - ${await response.text()}`);

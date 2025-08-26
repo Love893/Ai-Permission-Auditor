@@ -33,9 +33,12 @@ export default function App() {
   if (error) return <p style={{ color: "red" }}>Error: {error}</p>;
   if (!auditData) return null;
 
+
+
   return (
+    <>
     <div style={{ padding: "16px" }}>
-      <h2>Jira Audit Data</h2>
+      {/* <h2>Jira Audit Data</h2>
 
       <h3>Projects ({auditData.allProjects.length})</h3>
       <ul>
@@ -53,7 +56,7 @@ export default function App() {
         ))}
       </ul>
 
-     <h3>Permission Results</h3>
+<h3>Permission Results</h3>
 <table
   border="1"
   cellPadding="6"
@@ -73,43 +76,47 @@ export default function App() {
     </tr>
   </thead>
   <tbody>
-    {auditData.allPermissions.map((result, idx) => {
-      const globalPerms = result.global || [];
-      const projectPerms = result.project || [];
+    {(Array.isArray(auditData.allPermissions) ? auditData.allPermissions : []).map(
+      (result, idx) => {
+        const globalPerms = result.global || [];
+        const projectPerms = result.project || [];
 
-      return (
-        <tr key={idx}>
-          <td>{result.user?.displayName || "Unknown User"}</td>
-          <td>{result.project?.displayName || "Unknown Project"}</td>
-          <td>
-            {globalPerms.length > 0 ? (
-              <ul style={{ margin: 0, paddingLeft: "16px" }}>
-                {globalPerms.map((perm, i) => (
-                  <li key={i}>{perm}</li>
-                ))}
-              </ul>
-            ) : (
-              "No global permissions"
-            )}
-          </td>
-          <td>
-            {projectPerms.length > 0 ? (
-              <ul style={{ margin: 0, paddingLeft: "16px" }}>
-                {projectPerms.map((perm, i) => (
-                  <li key={i}>{perm}</li>
-                ))}
-              </ul>
-            ) : (
-              "No project permissions"
-            )}
-          </td>
-        </tr>
-      );
-    })}
+        return (
+          <tr key={idx}>
+            <td>{result.user?.displayName || "Unknown User"}</td>
+            <td>{result.project?.displayName || "Unknown Project"}</td>
+            <td>
+              {globalPerms.length > 0 ? (
+                <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                  {globalPerms.map((perm, i) => (
+                    <li key={i}>{perm}</li>
+                  ))}
+                </ul>
+              ) : (
+                "No global permissions"
+              )}
+            </td>
+            <td>
+              {projectPerms.length > 0 ? (
+                <ul style={{ margin: 0, paddingLeft: "16px" }}>
+                  {projectPerms.map((perm, i) => (
+                    <li key={i}>{perm}</li>
+                  ))}
+                </ul>
+              ) : (
+                "No project permissions"
+              )}
+            </td>
+          </tr>
+        );
+      }
+    )}
   </tbody>
 </table>
+ */}
 
 
     </div>
+    </>
   );
 }
