@@ -4,39 +4,18 @@ import api, { route } from '@forge/api';
 const resolver = new Resolver();
 
 // Main audit resolver
-resolver.define('runAudit', async () => {
+resolver.define('runAudit', async ({payload}) => {
+  const { cloudId } = payload;
   try {
     const allUsers = await getAllJiraUsers();
     const allProjects = await getAllJiraProjects();
-    // const auditLogRecords = await getAuditLog();
     const allPermissions = await getAllPermissions();
-    const projectPermissionSchemes = await getAllProjectPermissionSchemes(allProjects, allUsers, allPermissions);
-
-    // const matchedAuditRecords = auditLogRecords
-    //   .filter(record =>
-    //     allUsers.some(user => user.accountId === record.authorAccountId && user.accountType === "atlassian")
-    //   )
-    //   .map(record => {
-    //     const user = allUsers.find(u => u.accountId === record.authorAccountId);
-    //     return {
-    //       accountId: user?.accountId || record.authorAccountId,
-    //       displayName: user?.displayName || 'Unknown User',
-    //       activities: record?.summary || record?.eventSource || 'No activity details',
-    //       rawRecord: record
-    //     };
-    //   });
-
-    // const permissionResults = await checkPermissionsForAll(allUsers, allProjects);
-    
-
+    const projects = await getAllProjectPermissionSchemes(allProjects, allUsers, allPermissions);
     return {
-      success: true,
-      data: {
-        projectPermissionSchemes,   
-      }
+      orgId: cloudId,
+        projects,   
     };
   } catch (error) {
-    console.error('Audit failed:', error);
     return { success: false, error: error.message };
   }
 });
@@ -180,55 +159,74 @@ async function checkGlobalPermissionsForAll(users, groupedPermissionKeys) {
 
 // Fetch all project permission schemes with role users + groups enrichment
 async function getAllProjectPermissionSchemes(projects, users, permissions) {
-// compute global permissions once
-const globalPermissionsData = await checkGlobalPermissionsForAll(users, permissions);
+  // compute global permissions once
+  const globalPermissions = await checkGlobalPermissionsForAll(users, permissions);
 
-  // 🔹 now build project-specific schemes
-  const schemePromises = projects.map(async (project) => {
-    const scheme = await getProjectPermissionScheme(project.id);
+  // build project-specific schemes
+  const projectPromises = projects.map(async (project) => {
+    const permissionScheme = await getProjectPermissionScheme(project.id);
     const roleDetails = await getRoleIdScheme(project.id);
 
-    const roleUsersDetails = await Promise.all(
+    const roles = await Promise.all(
       roleDetails.map(async (role) => {
         const members = await getRoleUsersScheme(project.id, role.id);
+        const users = await getAllJiraUsers();
 
-        const enrichedActors = await Promise.all(
+        const usersWithGroups = await Promise.all(
           (members.actors || []).map(async (actor) => {
             const accountId = actor.actorUser?.accountId;
             let groups = [];
+            let displayName = actor.actorUser?.displayName || "NAME NOT FOUND";
+            let email = actor.actorUser?.emailAddress || "EMAIL NOT FOUND";
 
             if (accountId) {
               const groupsResp = await getGroupsOnAccId(accountId);
               groups = groupsResp ? groupsResp.map((g) => g.name) : [];
+
+              const matchedUser = users.find((u) => u.accountId === accountId);
+              if (matchedUser) {
+                displayName = matchedUser.displayName || displayName || "NAME NOT FOUND";
+                email = matchedUser.emailAddress || email || "EMAIL NOT FOUND";
+              }
             }
 
             return {
-              ...actor,
-              actorUser: { ...actor.actorUser, groups },
+              accountId,
+              displayName,
+              email,
+              groups,
+              active: actor.actorUser?.active ?? true,
             };
           })
         );
 
         return {
-          roleId: role.id,
-          roleName: role.name,
-          members: { ...members, actors: enrichedActors },
+          role: role.name,
+          users: usersWithGroups,
         };
       })
     );
 
-    scheme.roleUsersDetails = roleUsersDetails;
-
     return {
       projectId: project.id,
-      projectKey: project.key,
-      scheme,
-      globalPermissionsData, 
+      projectName: project.displayName,
+      permissionScheme: {
+        schemeId: permissionScheme.id,
+        schemeName: permissionScheme.name,
+        roles,
+      },
     };
   });
 
-  return Promise.all(schemePromises);
+  const projectsResult = await Promise.all(projectPromises);
+
+  // ✅ return in the correct format
+  return {
+    projects: projectsResult,
+    globalPermissions,
+  };
 }
+
 
 
 

@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from "react";
-import { invoke } from "@forge/bridge";
+import { invoke, view } from "@forge/bridge";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [auditData, setAuditData] = useState(null);
   const [error, setError] = useState(null);
   const [expandedRow, setExpandedRow] = useState(null); // Track which row is expanded
+  const [cloudId, setCloudId] = useState("");
 
   useEffect(() => {
     async function fetchAudit() {
       try {
         setLoading(true);
         const result = await invoke("runAudit");
+
         console.log("Audit result:", result);
 
         if (result.success) {
@@ -29,10 +31,23 @@ export default function App() {
     fetchAudit();
   }, []);
 
-  if (loading) return <p>Loading...</p>;
-  if (error) return <p style={{ color: "red" }}>Error: {error}</p>;
-  if (!auditData) return null;
+  // if (loading) return <p>Loading...</p>;
+  // if (error) return <p style={{ color: "red" }}>Error: {error}</p>;
+  // if (!auditData) return null;
 
+
+  useEffect(() => {
+    async function context() {
+    const context = await view.getContext()
+    const cloudId = context.cloudId;
+    setCloudId(cloudId);
+    const result = await invoke("runAudit" , { cloudId });
+    console.log("Result:", result);
+     
+    }
+
+    context();
+  }, []);
 
 
   return (
