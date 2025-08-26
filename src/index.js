@@ -9,7 +9,7 @@ resolver.define('runAudit', async () => {
     const allUsers = await getAllJiraUsers();
     const allProjects = await getAllJiraProjects();
     const allPermissions = await getAllPermissions();
-    const permissionResults = await checkPermissionsForAll(allUsers, allProjects);
+    const permissionResults = await checkPermissionsForAll(allUsers, allProjects ,allPermissions);
 
     return {
       success: true,
@@ -26,7 +26,7 @@ resolver.define('runAudit', async () => {
   }
 });
 
-// Fetch all users
+// // Fetch all users
 async function getAllJiraUsers() {
   const users = [];
   let startAt = 0;
@@ -94,7 +94,6 @@ async function getAllJiraProjects() {
     projects.push(...filteredProjects);
     startAt += maxResults;
   }
-
   return projects;
 }
 
@@ -125,86 +124,21 @@ async function getAllPermissions() {
       .map((perm) => perm.key),
   };
 
+  // console.log("groupedPermission keys global ***:::",groupedPermissionKeys.global)
+
   return groupedPermissionKeys;
 }
 
 
 // Check permissions for all user/project combinations
-async function checkPermissionsForAll(users, projects) {
+async function checkPermissionsForAll(users, projects , groupedPermissionKeys) {
   const results = [];
 
   for (const user of users) {
     for (const project of projects) {
       const bodyData = {
         accountId: user.accountId,
-        globalPermissions: [
-          "ADMINISTER",
-          "BULK_CHANGE",
-          "CREATE_PROJECT",
-          "CREATE_SHARED_OBJECTS",
-          "MANAGE_GROUP_FILTER_SUBSCRIPTIONS",
-          "SYSTEM_ADMIN",
-          "USER_PICKER",
-          "com.atlassian.atlas.jira__jira-townsquare-link-unconnected-issue-glance-view-permission",
-          "io.tempo.jira__tempo-account-administrator",
-          "io.tempo.jira__tempo-administrator",
-          "io.tempo.jira__tempo-planner-access",
-          "io.tempo.jira__tempo-projects-access",
-          "io.tempo.jira__tempo-projects-administrator",
-          "io.tempo.jira__tempo-projects-viewer",
-          "io.tempo.jira__tempo-rate-administrator",
-          "io.tempo.jira__tempo-sage-access",
-          "io.tempo.jira__tempo-team-administrator",
-          "io.tempo.jira__tempo-timesheets-access"
-        ],
-        projectPermissions: [
-          {
-            permissions: [
-              "ADD_COMMENTS",
-              "ADMINISTER_PROJECTS",
-              "ASSIGNABLE_USER",
-              "ASSIGN_ISSUES",
-              "BROWSE_PROJECTS",
-              "CLOSE_ISSUES",
-              "CREATE_ATTACHMENTS",
-              "CREATE_ISSUES",
-              "DELETE_ALL_ATTACHMENTS",
-              "DELETE_ALL_COMMENTS",
-              "DELETE_ALL_WORKLOGS",
-              "DELETE_ISSUES",
-              "DELETE_OWN_ATTACHMENTS",
-              "DELETE_OWN_COMMENTS",
-              "DELETE_OWN_WORKLOGS",
-              "EDIT_ALL_COMMENTS",
-              "EDIT_ALL_WORKLOGS",
-              "EDIT_ISSUES",
-              "EDIT_ISSUE_LAYOUT",
-              "EDIT_OWN_COMMENTS",
-              "EDIT_OWN_WORKLOGS",
-              "EDIT_WORKFLOW",
-              "LINK_ISSUES",
-              "MANAGE_SPRINTS_PERMISSION",
-              "MANAGE_WATCHERS",
-              "MODIFY_REPORTER",
-              "MOVE_ISSUES",
-              "RESOLVE_ISSUES",
-              "SCHEDULE_ISSUES",
-              "SET_ISSUE_SECURITY",
-              "TRANSITION_ISSUES",
-              "UNARCHIVE_ISSUES",
-              "VIEW_AGGREGATED_DATA",
-              "VIEW_DEV_TOOLS",
-              "VIEW_READONLY_WORKFLOW",
-              "VIEW_VOTERS_AND_WATCHERS",
-              "WORK_ON_ISSUES",
-              "io.tempo.jira__log-work-for-others",
-              "io.tempo.jira__set-billable-hours",
-              "io.tempo.jira__view-all-worklogs",
-              "io.tempo.jira__view-issue-hours"
-            ],
-            projects: [parseInt(project.id)]
-          }
-        ]
+        globalPermissions: groupedPermissionKeys.global
       };
 
     try {
@@ -222,7 +156,7 @@ async function checkPermissionsForAll(users, projects) {
 
   if (res.ok) {
     const json = await res.json();
-    console.log('permission check result:', json);
+    // console.log('permission check result:', json.globalPermissions);
     results.push({
       user: { accountId: user.accountId, displayName: user.displayName },
       project: { id: project.id, key: project.key, displayName: project.displayName },
@@ -240,11 +174,8 @@ async function checkPermissionsForAll(users, projects) {
     err
   );
 }
-
-    }
+  }
   }
   return results;
 }
-
-
 export const handler = resolver.getDefinitions();

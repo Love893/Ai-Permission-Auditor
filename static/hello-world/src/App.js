@@ -33,7 +33,10 @@ export default function App() {
   if (error) return <p style={{ color: "red" }}>Error: {error}</p>;
   if (!auditData) return null;
 
+
+
   return (
+    <>
     <div style={{ padding: "16px" }}>
       <h2>Jira Audit Data</h2>
 
@@ -159,5 +162,6 @@ export default function App() {
         </tbody>
       </table>
     </div>
+    </>
   );
 }
