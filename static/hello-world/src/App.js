@@ -1,11 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { invoke, view } from "@forge/bridge";
+import ChatInterface from './components/ChatInterface';
 
 export default function App() {
-  const [cloudId, setCloudId] = useState("");
   const [initData, setInitData] = useState(null);   // data from initAudit
   const [auditResult, setAuditResult] = useState(null); // result from processAudit
   const [loading, setLoading] = useState(false);
+  const [sinceDays, setSinceDays] = useState(90);      
+  const [cloudId, setCloudId] = useState('');
+  const [runLoading, setRunLoading] = useState(false);
+  const [runStatus, setRunStatus] = useState('');
+  const [showChat, setShowChat] = useState(false);
+  const [lastScannedAt, setLastScannedAt] = useState(null);
+
+  const cooldownActive = false;
+
 
   useEffect(() => {
     async function fetchInitData() {
@@ -65,38 +74,76 @@ async function runAudit() {
 }
 
 
-useEffect(()=>{
-runAudit()
-},[initData])
 
+useEffect(() => {
+  (async () => {
+    try {
+      const res = await invoke('getLastScannedAt', { orgId: cloudId });
+      if (res?.lastScannedAt != null) {
+        setLastScannedAt(Number(res.lastScannedAt));
+      }
+    } catch (e) {
+      console.warn('Failed to read view context:', e?.message || e);
+    }
+  })();
+}, []);
 
-  // Step 3: optionally send result to DB
-  // async function sendToDB() {
-  //   if (!auditResult) return;
-  //   try {
-  //     const dbResp = await invoke("sendHardcodedProjectsToSQS", { result: auditResult });
-  //     console.log("SQS data sent:", dbResp);
-  //   } catch (err) {
-  //     console.error("Failed to send to DB:", err);
-  //   }
-  // }
+const start = async () => {
+    setRunLoading(true);
+    setRunStatus('Fetching project list…');
+    const results = [];
+    try {
+      let processed = 0;
+      for (const project of initData.allProjects) {
+        setRunStatus(`🚀 Processing project: ${project.key}`);
+        // IMPORTANT: use the correct resolver name:
+        const result = await invoke("processAudit", {
+        cloudId,
+        allUsers: initData.allUsers,
+        allProjects: [project], // pass single project
+        groupedPermissionKeys: initData.groupedPermissionKeys,
+      });
 
+      console.log(`✅ Completed audit for project ${project.key}`, result);
+
+      results.push(result);
+        processed++;
+      }
+
+      const now = Date.now();
+      const until = now + 60 * 60 * 1000;
+      setLastScannedAt(now);
+
+      try {
+        await invoke('setLastScannedAt', { orgId: cloudId, ts: now });
+      } catch (e) {
+        console.error('Failed to persist lastScannedAt to Forge storage:', e);
+      }
+
+      setRunStatus('✅ Completed.');
+      setRunLoading(false);
+      setShowChat(true);
+      return true;
+    } catch (e) {
+      // show the real error
+      console.error(e); 
+      setRunStatus(`❌ Failed: ${e?.message || String(e)}`);
+      setRunLoading(false);
+      return false;
+    }
+  };
   return (
-    <div style={{ padding: "1rem" }}>
-      {!initData && <p>Loading initial data...</p>}
-
-      {/* {initData && !auditResult && (
-        <button onClick={runAudit} disabled={loading}>
-          {loading ? "Running Audit..." : "Run Audit"}
-        </button>
-      )} */}
-
-      {/* {auditResult && (
-        <>
-          <p>✅ Audit completed for {auditResult.data?.length || 0} projects</p>
-          <button onClick={sendToDB}>Send To DB</button>
-        </>
-      )} */}
-    </div>
+  <>
+   <ChatInterface
+      start={start}
+      showChat={showChat}
+      onBack={() => setShowChat(false)}
+      onOpenChat={() => setShowChat(true)}
+      lastScannedAt={lastScannedAt}
+      cooldownActive={cooldownActive}
+      runStatus={runStatus}
+      runLoading={runLoading}
+    />
+  </>
   );
 }
