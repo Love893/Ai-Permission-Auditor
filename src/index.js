@@ -37,13 +37,68 @@ resolver.define('runAudit', async ({ payload }) => {
       getAllPermissions(),
     ]);
 
+
+    console.log("allProjects***",allProjects)
     // index users
     for (const u of allUsers) userIndex.set(u.accountId, u);
-
     const globalPermissions = await checkGlobalPermissionsForAll(allUsers, groupedPermissionKeys);
-    const projects = await getAllProjectPermissionSchemes(allProjects, allUsers);
+ 
+    const projects=[];
+
+    for(const project of allProjects){
+
+      const out = [];
+
+      // FIX: wrap in array for Promise.allSettled
+        const settled = await Promise.allSettled([buildProjectPermissionData(project, allUsers)]);
+
+        out.push(...settled.filter((s) => s.status === 'fulfilled' && s.value).map((s) => s.value));
+        projects.push(out);
+
+    
+
+      // 🔹 Step 8: Send to SQS
+      try {
+        const payload={
+          event :"PermissionAuditor",
+          orgId: cloudId,
+          data :out,
+          globalPermissions :globalPermissions,
+          timestamp : new Date().toISOString()
+        };
+
+        // 🔍 Debug: log the payload before sending
+        const payloadString = JSON.stringify(payload);
+        const payloadSizeKB = (payloadString.length / 1024).toFixed(2);
+
+        const resp = await fetch('https://forgeapps.clovity.com/v0/api/sqs/send', {
+          method: 'POST',
+          headers: {
+            'x-api-key': process.env.APP_RUNNER_API_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+       // console.log("paylod is: ",payloadString);
+        if (resp.ok) {
+          console.log(
+            `📤 SQS push success → Project: ${out.projectName}, 📏 Payload Char length: ${payloadString.length} characters, Payload size: ${payloadSizeKB} KB`
+          );
+        } else {
+          console.error(
+           ` ❌ SQS push failed for Project: ${output.projectName},📏 Payload Char length: ${payloadString.length} characters,Payload size: ${payloadSizeKB} KB, Status: ${resp.status}, StatusText: ${resp.statusText}`
+          );
+          console.log("paylod is: ",payloadString);
+        }
+      } catch (e) {
+        console.error("❌ Failed to send to SQS:", e);
+      }
+
+    }
+        
 
     return {
+      allUsers : allUsers,
       event :"PermissionAuditor",
       orgId: cloudId,
       projects :projects,
