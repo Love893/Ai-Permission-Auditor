@@ -31,7 +31,9 @@ async function sendtodb() {
 
 return (
   <>
-    <button onClick={sendtodb}>SendToDB</button>
+    {result && (
+        <button onClick={sendtodb}>SendToDB</button>
+      )}
   </>
 );
 
