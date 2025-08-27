@@ -70,33 +70,11 @@ runAudit()
 },[initData])
 
 
-  // Step 3: optionally send result to DB
-  // async function sendToDB() {
-  //   if (!auditResult) return;
-  //   try {
-  //     const dbResp = await invoke("sendHardcodedProjectsToSQS", { result: auditResult });
-  //     console.log("SQS data sent:", dbResp);
-  //   } catch (err) {
-  //     console.error("Failed to send to DB:", err);
-  //   }
-  // }
+ 
 
   return (
     <div style={{ padding: "1rem" }}>
       {!initData && <p>Loading initial data...</p>}
-
-      {/* {initData && !auditResult && (
-        <button onClick={runAudit} disabled={loading}>
-          {loading ? "Running Audit..." : "Run Audit"}
-        </button>
-      )} */}
-
-      {/* {auditResult && (
-        <>
-          <p>✅ Audit completed for {auditResult.data?.length || 0} projects</p>
-          <button onClick={sendToDB}>Send To DB</button>
-        </>
-      )} */}
     </div>
   );
 }
