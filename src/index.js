@@ -151,7 +151,8 @@ resolver.define('getLastScannedAt', async ({ payload }) => {
 
 resolver.define('queryPermissionAuditor', async ({ payload }) => {
   const { query, event = 'permissionaudit', orgId } = payload || {};
-  
+  console.log("Json",JSON.stringify({ query, event, orgId }))
+
   const resp = await fetch('https://forgeapps.clovity.com/v0/api/query', {
     method: 'POST',
     headers: {

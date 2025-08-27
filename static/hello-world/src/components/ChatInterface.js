@@ -3,7 +3,7 @@ import { invoke, view as forgeView } from '@forge/bridge';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import html2pdf from 'html2pdf.js';
-import { Send, Bot, User, Clock, Download, GitMerge } from 'lucide-react';
+import { Send, Bot, User, Clock, Download, ShieldCheck } from 'lucide-react';
 import './ChatInterface.css';
 
 /** ---------- Markdown helpers (no remark/rehype) ---------- */
@@ -35,27 +35,28 @@ const ChatInterface = ({ start, showChat, onBack, onOpenChat, lastScannedAt, coo
   const [rescanLoading, setRescanLoading] = useState(false);
 
   const waitingMessages = [
-    "🔄 Untangling the web of workflows...",
-    "🧩 Piecing together transitions and statuses...",
-    "⚙️ Checking gears in the process engine...",
-    "📊 Mapping the journey of your issues...",
-    "🚦 Inspecting stoplights in your workflow path...",
-    "🔍 Detecting hidden bottlenecks...",
-    "🕸️ Analyzing the workflow maze...",
-    "⏳ Measuring time spent in each stage...",
-    "🎯 Spotting where efficiency can improve...",
-    "📐 Aligning transitions for smoother flow...",
-    "🛠️ Debugging the process automations...",
-    "📡 Tracking signals through your workflow...",
-    "🎨 Drawing a clearer picture of your process...",
-    "🌉 Building bridges between workflow gaps...",
-    "🔮 Predicting future bottlenecks...",
-    "⚡ Optimizing flow for faster delivery...",
-    "🗺️ Charting the roadmap of your workflow...",
-    "🏗️ Strengthening the workflow foundations...",
-    "🎭 Examining the roles in your process play...",
-    "🚀 Boosting efficiency to streamline progress..."
-  ];
+  "🔄 Scanning all permission schemes...",
+  "🛡️ Auditing user roles and access rights...",
+  "🔍 Checking for hidden admin privileges...",
+  "📊 Mapping users, groups, and roles...",
+  "🚦 Detecting risky permission overlaps...",
+  "🧩 Piecing together project access levels...",
+  "⚙️ Reviewing global vs. project permissions...",
+  "📡 Tracing user access across groups...",
+  "🔐 Identifying overexposed permissions...",
+  "🕵️ Searching for unauthorized access risks...",
+  "📑 Analyzing permission scheme details...",
+  "🗂️ Cross-checking users against groups...",
+  "🏗️ Validating permission scheme structures...",
+  "🧭 Guiding towards least-privilege access...",
+  "⚡ Highlighting critical security gaps...",
+  "🛠️ Checking consistency across projects...",
+  "📌 Pinpointing who has powerful roles...",
+  "🛰️ Tracking inherited permissions...",
+  "🔮 Predicting potential compliance risks...",
+  "🚀 Strengthening security for safer projects..."
+];
+
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
@@ -237,20 +238,20 @@ const ChatInterface = ({ start, showChat, onBack, onOpenChat, lastScannedAt, coo
       {!showChat && (
         <div className='welcomeContainer'>
           <div className='headContainer'>
-            <h2>Welcome to Workflow Analyzer</h2>
-          </div>
-          <h3 className='headDesc'>
-            Run the assistant to analyze your workflows and uncover inefficiencies.
-            You’ll then be able to chat with the assistant for deeper process insights and recommendations.
-          </h3>
+    <h2>Welcome to Permission Auditor</h2>
+  </div>
+  <h3 className='headDesc'>
+    Run the assistant to analyze your Jira project permissions and uncover hidden risks.  
+    You’ll then be able to review detailed insights and recommendations for tightening access and improving security.
+  </h3>
 
-          <ul className='welcomeList'>
-            <li><strong>What it solves:</strong> Delivery bottlenecks, long status aging, blocked transitions, unclear ownership, rework loops, and inefficient process paths.</li>
-            <li><strong>Who it’s for:</strong> Engineering, QA/Delivery, Product Owners, Project Managers, and Business Operations teams.</li>
-            <li><strong>What’s inside each analysis:</strong> Workflow map, bottleneck detection, transition health, cycle time breakdown, team handoff insights, automation gaps.</li>
-            <li><strong>AI in action:</strong> NLP, pattern recognition, anomaly detection, and predictive scoring to highlight risks and recommend workflow improvements.</li>
-            <li><strong>Measure impact:</strong> Cycle time, lead time, throughput, status aging, efficiency, and delivery predictability.</li>
-          </ul>
+  <ul className='welcomeList'>
+    <li><strong>What it solves:</strong> Overexposed permissions, unauthorized access, role misconfigurations, group overlaps, and hidden security risks.</li>
+    <li><strong>Who it’s for:</strong> Jira Administrators, Project Leads, Compliance Teams, Security Officers, and IT Governance teams.</li>
+    <li><strong>What’s inside each analysis:</strong> Permission scheme mapping, user-to-group breakdowns, role visibility, admin privilege detection, and potential conflicts.</li>
+    <li><strong>AI in action:</strong> Pattern recognition, anomaly detection, and risk scoring to flag misconfigurations and suggest best practices.</li>
+    <li><strong>Measure impact:</strong> Reduced security vulnerabilities, clearer ownership, controlled access, improved compliance, and stronger audit readiness.</li>
+  </ul>
 
           <div className='buttDiv'>
             <button
@@ -266,7 +267,7 @@ const ChatInterface = ({ start, showChat, onBack, onOpenChat, lastScannedAt, coo
                 fontWeight: 600
               }}
             >
-              {runLoading ? 'Running…' : 'Run Workflow Analyzer Assistant'}
+              {runLoading ? 'Running…' : 'Run Permission Auditor Assistant'}
             </button>
 
             <div className='lastScan'>
@@ -320,22 +321,26 @@ const ChatInterface = ({ start, showChat, onBack, onOpenChat, lastScannedAt, coo
           <div className="chat-messages">
             {messages.length === 0 && (
               <div className="welcome-message">
-                <div className="welcome-icon">
-                  <GitMerge size={48} />
-                </div>
-                <h2>Welcome to Workflow Analyzer Assistant</h2>
-                <p>Ask me anything about analyzing Jira workflows, detecting bottlenecks, optimizing transitions, or measuring process efficiency.</p>
-                <div className="suggestions">
-                  <h3>Try asking:</h3>
-                  <div className="suggestion-buttons">
-                    <button className="suggestion-button" onClick={() => setInputValue("Analyze workflow bottlenecks")}>Analyze workflow bottlenecks</button>
-                    <button className="suggestion-button" onClick={() => setInputValue("Show time spent in each status")}>Show time spent in each status</button>
-                    <button className="suggestion-button" onClick={() => setInputValue("Identify inefficient transitions")}>Identify inefficient transitions</button>
-                    <button className="suggestion-button" onClick={() => setInputValue("Measure cycle time and throughput")}>Measure cycle time and throughput</button>
-                    <button className="suggestion-button" onClick={() => setInputValue("Give workflow optimization recommendations")}>Give workflow optimization recommendations</button>
-                  </div>
-                </div>
-              </div>
+  <div className="welcome-icon">
+    <ShieldCheck size={48} />
+  </div>
+  <h2>Welcome to Permission Auditor Assistant</h2>
+  <p>
+    Ask me anything about analyzing Jira project permissions, identifying risks, checking user access, 
+    or improving security and compliance.
+  </p>
+  <div className="suggestions">
+    <h3>Try asking:</h3>
+    <div className="suggestion-buttons">
+      <button className="suggestion-button" onClick={() => setInputValue("Show users with Admin access")}>Show users with Admin access</button>
+      <button className="suggestion-button" onClick={() => setInputValue("List all permissions for a project")}>List all permissions for a project</button>
+      <button className="suggestion-button" onClick={() => setInputValue("Find users with overlapping roles")}>Find users with overlapping roles</button>
+      <button className="suggestion-button" onClick={() => setInputValue("Identify overexposed permissions")}>Identify overexposed permissions</button>
+      <button className="suggestion-button" onClick={() => setInputValue("Suggest best practices for permission security")}>Suggest best practices for permission security</button>
+    </div>
+  </div>
+</div>
+
             )}
 
             {messages.map((message) => (
