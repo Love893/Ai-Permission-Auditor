@@ -1,5 +1,5 @@
 import Resolver from '@forge/resolver';
-import api, { route } from '@forge/api';
+import api, { route , storage } from '@forge/api';
 
 const resolver = new Resolver();
 
@@ -83,7 +83,7 @@ resolver.define('processAudit', async ({ payload }) => {
     // 🔹 Push to SQS
     try {
       const sqsPayload = {
-        event: "PermissionAuditor",
+        event: "permissionaudit",
         orgId: cloudId,
         data: out,
         globalPermissions,
@@ -129,6 +129,45 @@ resolver.define('processAudit', async ({ payload }) => {
   }
 });
 
+
+resolver.define('setLastScannedAt', async ({ payload }) => {
+  const { orgId, ts } = payload || {};
+  if (!orgId || typeof ts !== 'number') {
+    return { success: false, error: 'orgId and numeric ts required' };
+  }
+  const key = `lastScannedAt:${orgId}`;
+  await storage.set(key, ts);
+  return { success: true };
+});
+
+resolver.define('getLastScannedAt', async ({ payload }) => {
+  const { orgId } = payload || {};
+  if (!orgId) return { lastScannedAt: null };
+  const key = `lastScannedAt:${orgId}`;
+  const val = await storage.get(key); // number (ms) or undefined
+  return { lastScannedAt: val ?? null };
+});
+
+
+resolver.define('queryPermissionAuditor', async ({ payload }) => {
+  const { query, event = 'permissionaudit', orgId } = payload || {};
+  
+  const resp = await fetch('https://forgeapps.clovity.com/v0/api/query', {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.APP_RUNNER_API_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ query, event, orgId })
+  });
+console.log("resp*********",resp)
+  if (!resp.ok) {
+    const text = await resp.text();
+    return { success: false, error: `Upstream error ${resp.status}: ${text?.slice(0, 400) || 'Unknown'}` };
+  }
+  const data = await resp.json();
+  return { success: true, data };
+});
 
 
 /**
