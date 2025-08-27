@@ -2,39 +2,101 @@ import React, { useEffect, useState } from "react";
 import { invoke, view } from "@forge/bridge";
 
 export default function App() {
-  const [result, setResult] = useState(null);
   const [cloudId, setCloudId] = useState("");
+  const [initData, setInitData] = useState(null);   // data from initAudit
+  const [auditResult, setAuditResult] = useState(null); // result from processAudit
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    async function fetchAudit() {
+    async function fetchInitData() {
       try {
-        const context = await view.getContext()
-    const cloudId = context.cloudId;
-    setCloudId(cloudId);
-        const result = await invoke("runAudit" ,  { cloudId });
-        setResult(result)
-        // console.log("Result:", result);
+        const context = await view.getContext();
+        const cid = context.cloudId;
+        setCloudId(cid);
+
+        // Step 1: call initAudit
+        const initRes = await invoke("initAudit", { cloudId: cid });
+        console.log("InitRes***",initRes)
+        if (initRes.success) {
+          setInitData(initRes);
+        } else {
+          console.error("initAudit failed:", initRes.error);
+        }
       } catch (err) {
-        console.log("error",err);
+        console.error("Error fetching init data:", err);
       }
     }
 
-    fetchAudit();
+    fetchInitData();
   }, []);
 
-  console.log(result)
+  // Step 2: processAudit on button click
+async function runAudit() {
+  if (!initData) return;
+  setLoading(true);
 
-async function sendtodb() {
-  const datasendtodb =await invoke("sendHardcodedProjectsToSQS", { result });
-  console.log("SQS data sent ", datasendtodb);  
+  const results = [];
+
+  try {
+    for (const project of initData.allProjects) {
+      console.log(`🚀 Auditing project: ${project.key} (${project.id})`);
+
+      const result = await invoke("processAudit", {
+        cloudId,
+        allUsers: initData.allUsers,
+        allProjects: [project], // pass single project
+        groupedPermissionKeys: initData.groupedPermissionKeys,
+      });
+
+      console.log(`✅ Completed audit for project ${project.key}`, result);
+
+      results.push(result);
+
+      // 👉 Optional: update UI incrementally as projects finish
+      setAuditResult((prev) => [...(prev || []), result]);
+    }
+
+    console.log("🎯 Final Results (all projects):", results);
+  } catch (err) {
+    console.error("processAudit loop failed:", err);
+  } finally {
+    setLoading(false);
+  }
 }
 
-return (
-  <>
-    {result && (
-        <button onClick={sendtodb}>SendToDB</button>
-      )}
-  </>
-);
 
+useEffect(()=>{
+runAudit()
+},[initData])
+
+
+  // Step 3: optionally send result to DB
+  // async function sendToDB() {
+  //   if (!auditResult) return;
+  //   try {
+  //     const dbResp = await invoke("sendHardcodedProjectsToSQS", { result: auditResult });
+  //     console.log("SQS data sent:", dbResp);
+  //   } catch (err) {
+  //     console.error("Failed to send to DB:", err);
+  //   }
+  // }
+
+  return (
+    <div style={{ padding: "1rem" }}>
+      {!initData && <p>Loading initial data...</p>}
+
+      {/* {initData && !auditResult && (
+        <button onClick={runAudit} disabled={loading}>
+          {loading ? "Running Audit..." : "Run Audit"}
+        </button>
+      )} */}
+
+      {/* {auditResult && (
+        <>
+          <p>✅ Audit completed for {auditResult.data?.length || 0} projects</p>
+          <button onClick={sendToDB}>Send To DB</button>
+        </>
+      )} */}
+    </div>
+  );
 }
