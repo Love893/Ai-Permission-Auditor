@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { invoke, view } from "@forge/bridge";
 import ChatInterface from './components/ChatInterface';
+import FullscreenLoader from "./components/FullscreenLoader";
 
 export default function App() {
   const [initData, setInitData] = useState(null);   // data from initAudit
@@ -132,6 +133,11 @@ const start = async () => {
       return false;
     }
   };
+
+   if (!initData) {
+    return <FullscreenLoader />;
+  }
+
   return (
   <>
    <ChatInterface

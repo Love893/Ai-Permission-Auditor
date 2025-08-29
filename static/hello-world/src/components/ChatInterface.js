@@ -185,7 +185,7 @@ const ChatInterface = ({ start, showChat, onBack, onOpenChat, lastScannedAt, coo
     wrapper.style.color = '#0f172a';
     const heading = document.createElement('div');
     heading.innerHTML = `
-      <h2 style="margin:0 0 4px 0;">Workflow Analyzer Assistant</h2>
+      <h2 style="margin:0 0 4px 0;">Permission Auditor</h2>
       <div style="font-size:12px;color:#475569;margin-bottom:12px;">
         Transcript • ${new Date().toLocaleString()}
       </div>
@@ -198,7 +198,7 @@ const ChatInterface = ({ start, showChat, onBack, onOpenChat, lastScannedAt, coo
 
     const opt = {
       margin: [10, 10, 10, 10],
-      filename: `workflow-analyzer-chat-${new Date().toISOString().slice(0, 10)}.pdf`,
+      filename: `permission-auditor-chat-${new Date().toISOString().slice(0, 10)}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -405,7 +405,7 @@ const ChatInterface = ({ start, showChat, onBack, onOpenChat, lastScannedAt, coo
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder="Ask about Workflow Analyzer..."
+                placeholder="Ask about Permission Auditor..."
                 disabled={isLoading}
                 className="chat-input"
               />
