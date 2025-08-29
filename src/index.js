@@ -96,26 +96,26 @@ resolver.define('processAudit', async ({ payload }) => {
       const payloadString = JSON.stringify(sqsPayload);
       const payloadSizeKB = (payloadString.length / 1024).toFixed(2);
 
-      // const resp = await fetch("https://forgeapps.clovity.com/v0/api/sqs/send", {
-      //   method: "POST",
-      //   headers: {
-      //     "x-api-key": process.env.APP_RUNNER_API_KEY,
-      //     "Content-Type": "application/json",
-      //   },
-      //   body: payloadString,
-      // });
+      const resp = await fetch("https://forgeapps.clovity.com/v0/api/sqs/send", {
+        method: "POST",
+        headers: {
+         "x-api-key": process.env.APP_RUNNER_API_KEY,
+         "Content-Type": "application/json",
+        },
+        body: payloadString,
+      });
 
-      // console.log("i am data", payloadString)
+      console.log("Data", payloadString)
 
-      // if (resp.ok) {
-      //   console.log(
-      //     `📤 SQS push success → Project: ${projData?.projectName || project.key}, 📏 Size: ${payloadSizeKB} KB`
-      //   );
-      // } else {
-      //   console.error(
-      //     `❌ SQS push failed for Project: ${projData?.projectName || project.key}, Status: ${resp.status} - ${resp.statusText}`
-      //   );
-      // }
+      if (resp.ok) {
+        console.log(
+          `📤 SQS push success → Project: ${projData?.projectName || project.key}, 📏 Size: ${payloadSizeKB} KB`
+        );
+      } else {
+        console.error(
+          `❌ SQS push failed for Project: ${projData?.projectName || project.key}, Status: ${resp.status} - ${resp.statusText}`
+        );
+      }
     } catch (e) {
       console.error("❌ Failed to send to SQS:", e);
     }
@@ -209,33 +209,21 @@ async function getAllIssuesForProject(projectKey) {
   return issues;
 }
 
-// 🔹 Get issues for ALL projects concurrently
+// 🔹 Example: Get issues for ALL projects
 async function getAllProjectsAndIssues() {
-  const projects = await getAllJiraProjects();
-  console.log(`***Fetched a total of ${projects.length} projects.`);
+  const projects = await getAllJiraProjects()
 
-  const allIssues = [];
-  // Use a small batch size to avoid timeouts
-  const BATCH_SIZE = 5;
+  console.log("***Projects", projects);
 
-  for (let i = 0; i < projects.length; i += BATCH_SIZE) {
-    const projectBatch = projects.slice(i, i + BATCH_SIZE);
-    
-    console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of projects (${projectBatch.length} projects in this batch)...`);
 
-    // Create promises for the current batch of projects
-    const issuePromises = projectBatch.map(project => getAllIssuesForProject(project.key));
-    
-    // Wait for the entire batch to complete
-    const batchIssues = await Promise.all(issuePromises);
+  const allData = [];
 
-    // Flatten the results and add to the main array
-    allIssues.push(...batchIssues.flat());
-
-    console.log(`✅ Batch processing complete. Total issues collected so far: ${allIssues.length}`);
+  for (const project of projects) {
+    const projectIssues = await getAllIssuesForProject(project.key);
+    allData.push(...projectIssues);
   }
-  
-  return allIssues;
+
+  return allData;
 }
 
 
@@ -575,5 +563,6 @@ async function getGroupsOnAccId(accountId) {
   groupCache.set(accountId, data || []);
   return data || [];
 }
+
 
 export const handler = resolver.getDefinitions();
