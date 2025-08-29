@@ -105,7 +105,7 @@ resolver.define('processAudit', async ({ payload }) => {
         body: payloadString,
       });
 
-      console.log("Data", payloadString)
+      // console.log("Data", payloadString)
 
       if (resp.ok) {
         console.log(
