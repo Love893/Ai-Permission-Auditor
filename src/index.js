@@ -51,7 +51,8 @@ resolver.define('initAudit', async ({ payload }) => {
 
 // ✅ Second resolver: consume inputs, do calculations, push to DB
 resolver.define('processAudit', async ({ payload }) => {
-  const { cloudId, allUsers, allProjects, groupedPermissionKeys } = payload || {};
+  const { cloudId, allUsers, allProjects, groupedPermissionKeys,lastLoginResults } = payload || {};
+  // console.log("lastlogin***",JSON.stringify(lastLoginResults))
 
   try {
     if (!allProjects || allProjects.length === 0) {
@@ -61,13 +62,6 @@ resolver.define('processAudit', async ({ payload }) => {
     // index users (if not already cached)
     for (const u of allUsers) userIndex.set(u.accountId, u);
 
-    // Get all issues and user activity data ONCE
-    const allIssues = await getAllProjectsAndIssues();
-    const lastActivityDates = await getUserLastActivityDates({ issues: allIssues, userDirectory: userIndex });
-
-    // Map the activity dates for easy lookup
-    const userActivityMap = new Map(lastActivityDates.map(u => [u.accountId, u]));
-
     // compute global permissions once
     const globalPermissions = await checkGlobalPermissionsForAll(allUsers, groupedPermissionKeys);
 
@@ -76,7 +70,7 @@ resolver.define('processAudit', async ({ payload }) => {
     const out = [];
 
     const settled = await Promise.allSettled([
-      buildProjectPermissionData(project, allUsers, globalPermissions, userActivityMap),
+      buildProjectPermissionData(project, allUsers, globalPermissions ,lastLoginResults ),
     ]);
 
     out.push(...settled.filter((s) => s.status === "fulfilled" && s.value).map((s) => s.value));
@@ -172,6 +166,41 @@ resolver.define('queryPermissionAuditor', async ({ payload }) => {
   }
   const data = await resp.json();
   return { success: true, data };
+});
+
+
+resolver.define('calculateLastLoginForProject', async ({ payload }) => {
+  const { project, allUsers } = payload || {};
+
+  try {
+    if (!project?.key) {
+      throw new Error("Project key required");
+    }
+
+    // ✅ ensure users are indexed
+    for (const u of allUsers) userIndex.set(u.accountId, u);
+
+    // 🔹 fetch issues only for this project
+    const projectIssues = await getAllIssuesForProject(project.key);
+
+    // 🔹 calculate last login (last activity per user)
+    const lastActivityDates = await getUserLastActivityDates({
+      issues: projectIssues,
+      userDirectory: userIndex,
+    });
+
+    // Return clean structure
+    return {
+      success: true,
+      projectKey: project.key,
+      projectName: project.displayName,
+      users: lastActivityDates,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error("calculateLastLoginForProject failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
 });
 
 
@@ -377,13 +406,13 @@ async function getAllProjectPermissionSchemes(projects, allUsers) {
   return out;
 }
 
-async function buildProjectPermissionData(project, allUsers, globalPermissions, userActivityMap) {
+async function buildProjectPermissionData(project, allUsers, globalPermissions, lastLoginResults) {
   const [permissionScheme, roleDetails] = await Promise.all([
     getProjectPermissionScheme(project.id),
     getRoleIdScheme(project.id),
   ]);
 
-  const roles = await buildRolesForProject(project.id, roleDetails || [], allUsers, userActivityMap);
+  const roles = await buildRolesForProject(project.id, roleDetails || [], allUsers, lastLoginResults);
 
   return {
     projectId: project.id,
@@ -397,7 +426,7 @@ async function buildProjectPermissionData(project, allUsers, globalPermissions, 
   };
 }
 
-async function buildRolesForProject(projectId, roleDetails, allUsers, userActivityMap) {
+async function buildRolesForProject(projectId, roleDetails, allUsers, lastLoginResults) {
   if (!Array.isArray(roleDetails) || roleDetails.length === 0) return [];
 
   const rolesOut = [];
@@ -414,7 +443,7 @@ async function buildRolesForProject(projectId, roleDetails, allUsers, userActivi
           const memberSlice = actors.slice(j, j + CONFIG.MEMBERS_CONCURRENCY);
 
           const results = await Promise.allSettled(
-            memberSlice.map((actor) => expandActorToUser(actor, allUsers, userActivityMap))
+            memberSlice.map((actor) => expandActorToUser(actor, allUsers, lastLoginResults))
           );
 
           usersWithGroups.push(
@@ -437,7 +466,26 @@ async function buildRolesForProject(projectId, roleDetails, allUsers, userActivi
  * Actor expansion (safe awaits)
  * =========================
  */
-async function expandActorToUser(actor, allUsers, userActivityMap) {
+// Utility: Build a global lookup map from lastLoginResults
+async function buildLastLoginMap(lastLoginResults) {
+  const map = new Map();
+
+  for (const project of lastLoginResults || []) {
+    for (const user of project.users || []) {
+      const existing = map.get(user.accountId);
+
+      // Keep the most recent activity date across projects
+      if (!existing || new Date(user.lastActivityDate) > new Date(existing)) {
+        map.set(user.accountId, user.lastActivityDate);
+      }
+    }
+  }
+
+  return map;
+}
+
+// Expand actor → user details
+async function expandActorToUser(actor, allUsers, lastLoginResults) {
   const accountId = actor?.actorUser?.accountId;
   if (!accountId) return null;
 
@@ -447,21 +495,26 @@ async function expandActorToUser(actor, allUsers, userActivityMap) {
     displayName = matched.displayName || displayName;
   }
 
+  // Build last login map once and reuse
+  const lastLoginMap =await buildLastLoginMap(lastLoginResults);
+  const lastActivity = lastLoginMap.get(accountId) || 'Null';
+
   const groupsResp = await getGroupsOnAccId(accountId);
-  const groups = Array.isArray(groupsResp) ? groupsResp.map((g) => g.name).filter(Boolean) : [];
-  
-  // Retrieve last login from the pre-calculated map
-  const lastActivity = userActivityMap.get(accountId)?.lastActivityDate || 'Null';
+  const groups = Array.isArray(groupsResp) 
+    ? groupsResp.map((g) => g.name).filter(Boolean) 
+    : [];
 
   return {
     accountId,
     displayName,
-    lastLogin: lastActivity, // Use the real value here
+    lastLogin: lastActivity,
     riskLevel: 'medium',
     groups,
     active: matched?.active ?? actor?.actorUser?.active ?? true,
   };
 }
+
+
 
 async function getUserLastActivityDates({ issues, userDirectory }) {
   const presentUserIds = new Set();

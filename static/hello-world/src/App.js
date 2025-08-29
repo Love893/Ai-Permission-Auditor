@@ -40,40 +40,6 @@ export default function App() {
     fetchInitData();
   }, []);
 
-  // Step 2: processAudit on button click
-async function runAudit() {
-  if (!initData) return;
-  setLoading(true);
-
-  const results = [];
-
-  try {
-    for (const project of initData.allProjects) {
-      console.log(`🚀 Auditing project: ${project.key} (${project.id})`);
-
-      const result = await invoke("processAudit", {
-        cloudId,
-        allUsers: initData.allUsers,
-        allProjects: [project], // pass single project
-        groupedPermissionKeys: initData.groupedPermissionKeys,
-      });
-
-      console.log(`✅ Completed audit for project ${project.key}`, result);
-
-      results.push(result);
-
-      // 👉 Optional: update UI incrementally as projects finish
-      setAuditResult((prev) => [...(prev || []), result]);
-    }
-
-    console.log("🎯 Final Results (all projects):", results);
-  } catch (err) {
-    console.error("processAudit loop failed:", err);
-  } finally {
-    setLoading(false);
-  }
-}
-
 
 
 useEffect(() => {
@@ -90,49 +56,60 @@ useEffect(() => {
 }, []);
 
 const start = async () => {
-    setRunLoading(true);
-    setRunStatus('Fetching project list…');
-    const results = [];
-    try {
-      let processed = 0;
-      for (const project of initData.allProjects) {
-        setRunStatus(`🚀 Processing project: ${project.key}`);
-        // IMPORTANT: use the correct resolver name:
-        const result = await invoke("processAudit", {
+  setRunLoading(true);
+  setRunStatus('Fetching project list…');
+  const results = [];
+
+  try {
+    let processed = 0;
+
+    for (const project of initData.allProjects) {
+      setRunStatus(`🚀 Processing project: ${project.key}`);
+
+      // 1️⃣ First fetch last login for this project
+      const lastLoginResp = await invoke("calculateLastLoginForProject", {
+        project,
+        allUsers: initData.allUsers,
+      });
+      console.log(`LastLoginResp [${project.key}]***`, lastLoginResp);
+
+      // 2️⃣ Pass it directly into processAudit for this project
+      const result = await invoke("processAudit", {
         cloudId,
         allUsers: initData.allUsers,
-        allProjects: [project], // pass single project
+        allProjects: [project], // single project
         groupedPermissionKeys: initData.groupedPermissionKeys,
+        lastLoginResults: [lastLoginResp], // pass only this project’s last login
       });
 
       console.log(`✅ Completed audit for project ${project.key}`, result);
 
       results.push(result);
-        processed++;
-      }
-
-      const now = Date.now();
-      const until = now + 60 * 60 * 1000;
-      setLastScannedAt(now);
-
-      try {
-        await invoke('setLastScannedAt', { orgId: cloudId, ts: now });
-      } catch (e) {
-        console.error('Failed to persist lastScannedAt to Forge storage:', e);
-      }
-
-      setRunStatus('✅ Completed.');
-      setRunLoading(false);
-      setShowChat(true);
-      return true;
-    } catch (e) {
-      // show the real error
-      console.error(e); 
-      setRunStatus(`❌ Failed: ${e?.message || String(e)}`);
-      setRunLoading(false);
-      return false;
+      processed++;
+      setAuditResult((prev) => [...(prev || []), result]); // incremental UI update
     }
-  };
+
+    const now = Date.now();
+    setLastScannedAt(now);
+
+    try {
+      await invoke('setLastScannedAt', { orgId: cloudId, ts: now });
+    } catch (e) {
+      console.error('Failed to persist lastScannedAt to Forge storage:', e);
+    }
+
+    setRunStatus('✅ Completed.');
+    setRunLoading(false);
+    setShowChat(true);
+    return true;
+  } catch (e) {
+    console.error(e);
+    setRunStatus(`❌ Failed: ${e?.message || String(e)}`);
+    setRunLoading(false);
+    return false;
+  }
+};
+
 
    if (!initData) {
     return <FullscreenLoader />;
