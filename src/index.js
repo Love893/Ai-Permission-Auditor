@@ -1,5 +1,5 @@
 import Resolver from '@forge/resolver';
-import api, { route } from '@forge/api';
+import api, { route, storage } from '@forge/api';
 
 const resolver = new Resolver();
 
@@ -20,8 +20,8 @@ const CONFIG = {
 /**
  * Caches
  */
-const groupCache = new Map();     // accountId -> groups
-const userIndex = new Map();      // accountId -> user
+const groupCache = new Map(); // accountId -> groups
+const userIndex = new Map(); // accountId -> user
 
 /**
  * =========================
@@ -51,7 +51,8 @@ resolver.define('initAudit', async ({ payload }) => {
 
 // ✅ Second resolver: consume inputs, do calculations, push to DB
 resolver.define('processAudit', async ({ payload }) => {
-  const { cloudId, allUsers, allProjects, groupedPermissionKeys } = payload || {};
+  const { cloudId, allUsers, allProjects, groupedPermissionKeys,lastLoginResults } = payload || {};
+  // console.log("lastlogin***",JSON.stringify(lastLoginResults))
 
   try {
     if (!allProjects || allProjects.length === 0) {
@@ -69,24 +70,20 @@ resolver.define('processAudit', async ({ payload }) => {
     const out = [];
 
     const settled = await Promise.allSettled([
-      buildProjectPermissionData(project, allUsers),
+      buildProjectPermissionData(project, allUsers, globalPermissions ,lastLoginResults ),
     ]);
 
-    out.push(
-      ...settled
-        .filter((s) => s.status === "fulfilled" && s.value)
-        .map((s) => s.value)
-    );
+    out.push(...settled.filter((s) => s.status === "fulfilled" && s.value).map((s) => s.value));
 
     const [projData] = out;
 
     // 🔹 Push to SQS
     try {
       const sqsPayload = {
-        event: "PermissionAuditor",
+        event: "permissionaudit",
         orgId: cloudId,
         data: out,
-        globalPermissions,
+        // globalPermissions,
         timestamp: new Date().toISOString(),
       };
 
@@ -96,11 +93,13 @@ resolver.define('processAudit', async ({ payload }) => {
       const resp = await fetch("https://forgeapps.clovity.com/v0/api/sqs/send", {
         method: "POST",
         headers: {
-          "x-api-key": process.env.APP_RUNNER_API_KEY,
-          "Content-Type": "application/json",
+         "x-api-key": process.env.APP_RUNNER_API_KEY,
+         "Content-Type": "application/json",
         },
         body: payloadString,
       });
+
+      // console.log("Data", payloadString)
 
       if (resp.ok) {
         console.log(
@@ -120,7 +119,6 @@ resolver.define('processAudit', async ({ payload }) => {
       event: "PermissionAuditor",
       orgId: cloudId,
       project: projData || project, // return project-level result
-      globalPermissions,
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
@@ -130,12 +128,135 @@ resolver.define('processAudit', async ({ payload }) => {
 });
 
 
+resolver.define('setLastScannedAt', async ({ payload }) => {
+  const { orgId, ts } = payload || {};
+  if (!orgId || typeof ts !== 'number') {
+    return { success: false, error: 'orgId and numeric ts required' };
+  }
+  const key = `lastScannedAt:${orgId}`;
+  await storage.set(key, ts);
+  return { success: true };
+});
+
+resolver.define('getLastScannedAt', async ({ payload }) => {
+  const { orgId } = payload || {};
+  if (!orgId) return { lastScannedAt: null };
+  const key = `lastScannedAt:${orgId}`;
+  const val = await storage.get(key); // number (ms) or undefined
+  return { lastScannedAt: val ?? null };
+});
+
+
+resolver.define('queryPermissionAuditor', async ({ payload }) => {
+  const { query, event = 'permissionaudit', orgId } = payload || {};
+  console.log("Json", JSON.stringify({ query, event, orgId }))
+
+  const resp = await fetch('https://forgeapps.clovity.com/v0/api/query', {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.APP_RUNNER_API_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ query, event, orgId })
+  });
+  console.log("resp*********", resp)
+  if (!resp.ok) {
+    const text = await resp.text();
+    return { success: false, error: `Upstream error ${resp.status}: ${text?.slice(0, 400) || 'Unknown'}` };
+  }
+  const data = await resp.json();
+  return { success: true, data };
+});
+
+
+resolver.define('calculateLastLoginForProject', async ({ payload }) => {
+  const { project, allUsers } = payload || {};
+
+  try {
+    if (!project?.key) {
+      throw new Error("Project key required");
+    }
+
+    // ✅ ensure users are indexed
+    for (const u of allUsers) userIndex.set(u.accountId, u);
+
+    // 🔹 fetch issues only for this project
+    const projectIssues = await getAllIssuesForProject(project.key);
+
+    // 🔹 calculate last login (last activity per user)
+    const lastActivityDates = await getUserLastActivityDates({
+      issues: projectIssues,
+      userDirectory: userIndex,
+    });
+
+    // Return clean structure
+    return {
+      success: true,
+      projectKey: project.key,
+      projectName: project.displayName,
+      users: lastActivityDates,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error("calculateLastLoginForProject failed:", error);
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
 
 /**
  * =========================
  * Fetchers
  * =========================
  */
+
+async function getAllIssuesForProject(projectKey) {
+  let startAt = 0;
+  const maxResults = 50;
+  const issues = [];
+
+  while (true) {
+    const response = await api.asApp().requestJira(
+      route`/rest/api/3/search?jql=project=${projectKey}&startAt=${startAt}&maxResults=${maxResults}`
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error(`Failed to fetch issues for ${projectKey}:`, error);
+      break;
+    }
+
+    const data = await response.json();
+    issues.push(...data.issues);
+
+    if (startAt + maxResults >= data.total) {
+      break;
+    }
+    startAt += maxResults;
+  }
+
+  return issues;
+}
+
+// 🔹 Example: Get issues for ALL projects
+async function getAllProjectsAndIssues() {
+  const projects = await getAllJiraProjects()
+
+  console.log("***Projects", projects);
+
+
+  const allData = [];
+
+  for (const project of projects) {
+    const projectIssues = await getAllIssuesForProject(project.key);
+    allData.push(...projectIssues);
+  }
+
+  return allData;
+}
+
+
+
 
 async function getAllJiraUsers() {
   const users = [];
@@ -161,7 +282,6 @@ async function getAllJiraUsers() {
         .map((u) => ({
           accountId: u.accountId,
           displayName: u.displayName,
-          emailAddress:u.emailAddress,
           active: u.active ?? true,
         }))
     );
@@ -286,13 +406,13 @@ async function getAllProjectPermissionSchemes(projects, allUsers) {
   return out;
 }
 
-async function buildProjectPermissionData(project, allUsers) {
+async function buildProjectPermissionData(project, allUsers, globalPermissions, lastLoginResults) {
   const [permissionScheme, roleDetails] = await Promise.all([
     getProjectPermissionScheme(project.id),
     getRoleIdScheme(project.id),
   ]);
 
-  const roles = await buildRolesForProject(project.id, roleDetails || [], allUsers);
+  const roles = await buildRolesForProject(project.id, roleDetails || [], allUsers, lastLoginResults);
 
   return {
     projectId: project.id,
@@ -302,10 +422,11 @@ async function buildProjectPermissionData(project, allUsers) {
       schemeName: permissionScheme?.name || null,
       roles,
     },
+    globalPermissions,
   };
 }
 
-async function buildRolesForProject(projectId, roleDetails, allUsers) {
+async function buildRolesForProject(projectId, roleDetails, allUsers, lastLoginResults) {
   if (!Array.isArray(roleDetails) || roleDetails.length === 0) return [];
 
   const rolesOut = [];
@@ -322,7 +443,7 @@ async function buildRolesForProject(projectId, roleDetails, allUsers) {
           const memberSlice = actors.slice(j, j + CONFIG.MEMBERS_CONCURRENCY);
 
           const results = await Promise.allSettled(
-            memberSlice.map((actor) => expandActorToUser(actor, allUsers))
+            memberSlice.map((actor) => expandActorToUser(actor, allUsers, lastLoginResults))
           );
 
           usersWithGroups.push(
@@ -345,34 +466,103 @@ async function buildRolesForProject(projectId, roleDetails, allUsers) {
  * Actor expansion (safe awaits)
  * =========================
  */
-async function expandActorToUser(actor, allUsers) {
+// Utility: Build a global lookup map from lastLoginResults
+async function buildLastLoginMap(lastLoginResults) {
+  const map = new Map();
+
+  for (const project of lastLoginResults || []) {
+    for (const user of project.users || []) {
+      const existing = map.get(user.accountId);
+
+      // Keep the most recent activity date across projects
+      if (!existing || new Date(user.lastActivityDate) > new Date(existing)) {
+        map.set(user.accountId, user.lastActivityDate);
+      }
+    }
+  }
+
+  return map;
+}
+
+// Expand actor → user details
+async function expandActorToUser(actor, allUsers, lastLoginResults) {
   const accountId = actor?.actorUser?.accountId;
-  // console.log("ACC ID***",accountId)
   if (!accountId) return null;
 
   let displayName = actor?.actorUser?.displayName || 'NAME NOT FOUND';
-  let email = actor?.actorUser?.emailAddress || 'EMAIL NOT FOUND';
-
   const matched = allUsers.find((u) => u.accountId === accountId);
-  // console.log("matched********",matched)
   if (matched) {
     displayName = matched.displayName || displayName;
-    email = matched.emailAddress || email
   }
 
+  // Build last login map once and reuse
+  const lastLoginMap =await buildLastLoginMap(lastLoginResults);
+  const lastActivity = lastLoginMap.get(accountId) || 'Null';
+
   const groupsResp = await getGroupsOnAccId(accountId);
-  const groups = Array.isArray(groupsResp) ? groupsResp.map((g) => g.name).filter(Boolean) : [];
+  const groups = Array.isArray(groupsResp) 
+    ? groupsResp.map((g) => g.name).filter(Boolean) 
+    : [];
 
   return {
     accountId,
     displayName,
-    lastLogin: 'Null',
+    lastLogin: lastActivity,
     riskLevel: 'medium',
-    email,
     groups,
     active: matched?.active ?? actor?.actorUser?.active ?? true,
   };
 }
+
+
+
+async function getUserLastActivityDates({ issues, userDirectory }) {
+  const presentUserIds = new Set();
+  const userLatestActivity = new Map();
+
+  for (const it of issues) {
+    const updatedIso =
+      it?.fields?.updated || it?.fields?.statuscategorychangedate || it?.fields?.created;
+
+    let d = null;
+    if (updatedIso) {
+      const parsed = new Date(updatedIso);
+      if (!Number.isNaN(parsed.getTime())) {
+        d = parsed;
+      }
+    }
+
+    const assigneeId = it?.fields?.assignee?.accountId;
+    const reporterId = it?.fields?.reporter?.accountId;
+
+    if (assigneeId && userDirectory.has(assigneeId)) {
+      presentUserIds.add(assigneeId);
+      if (d) {
+        const cur = userLatestActivity.get(assigneeId);
+        if (!cur || d > cur) userLatestActivity.set(assigneeId, d);
+      }
+    }
+    if (reporterId && userDirectory.has(reporterId)) {
+      presentUserIds.add(reporterId);
+      if (d) {
+        const cur = userLatestActivity.get(reporterId);
+        if (!cur || d > cur) userLatestActivity.set(reporterId, d);
+      }
+    }
+  }
+
+  // Now build a clean list
+  return Array.from(presentUserIds).map((accountId) => {
+    const dirEntry = userDirectory.get(accountId);
+    const last = userLatestActivity.get(accountId) || null;
+    return {
+      accountId,
+      displayName: dirEntry?.displayName || 'Unknown',
+      lastActivityDate: last ? last.toISOString().slice(0, 10) : null,
+    };
+  });
+}
+
 
 /**
  * =========================
@@ -426,30 +616,6 @@ async function getGroupsOnAccId(accountId) {
   groupCache.set(accountId, data || []);
   return data || [];
 }
-
-
-resolver.define('sendHardcodedProjectsToSQS', async ({ payload }) => {
-  const { result } = payload || {};
-  
-
-  console.log("fJSON***", JSON.stringify(result))
-  try {
-    const resp = await fetch('https://forgeapps.clovity.com/v0/api/sqs/send', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.APP_RUNNER_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(result)
-    });
-
-    console.log("response*****",resp);
-    return JSON.stringify(result)
-
-  } catch (e) {
- return { success: false, error: `Resolver error: ${e.message}` };
-  }
-});
 
 
 export const handler = resolver.getDefinitions();

@@ -1,11 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { invoke, view } from "@forge/bridge";
+import ChatInterface from './components/ChatInterface';
+import FullscreenLoader from "./components/FullscreenLoader";
 
 export default function App() {
-  const [cloudId, setCloudId] = useState("");
   const [initData, setInitData] = useState(null);   // data from initAudit
   const [auditResult, setAuditResult] = useState(null); // result from processAudit
   const [loading, setLoading] = useState(false);
+  const [sinceDays, setSinceDays] = useState(90);      
+  const [cloudId, setCloudId] = useState('');
+  const [runLoading, setRunLoading] = useState(false);
+  const [runStatus, setRunStatus] = useState('');
+  const [showChat, setShowChat] = useState(false);
+  const [lastScannedAt, setLastScannedAt] = useState(null);
+
+  const cooldownActive = false;
+
 
   useEffect(() => {
     async function fetchInitData() {
@@ -30,51 +40,93 @@ export default function App() {
     fetchInitData();
   }, []);
 
-  // Step 2: processAudit on button click
-async function runAudit() {
-  if (!initData) return;
-  setLoading(true);
 
+
+useEffect(() => {
+  (async () => {
+    try {
+      const res = await invoke('getLastScannedAt', { orgId: cloudId });
+      if (res?.lastScannedAt != null) {
+        setLastScannedAt(Number(res.lastScannedAt));
+      }
+    } catch (e) {
+      console.warn('Failed to read view context:', e?.message || e);
+    }
+  })();
+}, []);
+
+const start = async () => {
+  setRunLoading(true);
+  setRunStatus('Fetching project list…');
   const results = [];
 
   try {
-    for (const project of initData.allProjects) {
-      console.log(`🚀 Auditing project: ${project.key} (${project.id})`);
+    let processed = 0;
 
+    for (const project of initData.allProjects) {
+      setRunStatus(`🚀 Processing project: ${project.key}`);
+
+      // 1️⃣ First fetch last login for this project
+      const lastLoginResp = await invoke("calculateLastLoginForProject", {
+        project,
+        allUsers: initData.allUsers,
+      });
+      console.log(`LastLoginResp [${project.key}]***`, lastLoginResp);
+
+      // 2️⃣ Pass it directly into processAudit for this project
       const result = await invoke("processAudit", {
         cloudId,
         allUsers: initData.allUsers,
-        allProjects: [project], // pass single project
+        allProjects: [project], // single project
         groupedPermissionKeys: initData.groupedPermissionKeys,
+        lastLoginResults: [lastLoginResp], // pass only this project’s last login
       });
 
       console.log(`✅ Completed audit for project ${project.key}`, result);
 
       results.push(result);
-
-      // 👉 Optional: update UI incrementally as projects finish
-      setAuditResult((prev) => [...(prev || []), result]);
+      processed++;
+      setAuditResult((prev) => [...(prev || []), result]); // incremental UI update
     }
 
-    console.log("🎯 Final Results (all projects):", results);
-  } catch (err) {
-    console.error("processAudit loop failed:", err);
-  } finally {
-    setLoading(false);
+    const now = Date.now();
+    setLastScannedAt(now);
+
+    try {
+      await invoke('setLastScannedAt', { orgId: cloudId, ts: now });
+    } catch (e) {
+      console.error('Failed to persist lastScannedAt to Forge storage:', e);
+    }
+
+    setRunStatus('✅ Completed.');
+    setRunLoading(false);
+    setShowChat(true);
+    return true;
+  } catch (e) {
+    console.error(e);
+    setRunStatus(`❌ Failed: ${e?.message || String(e)}`);
+    setRunLoading(false);
+    return false;
   }
-}
+};
 
 
-useEffect(()=>{
-runAudit()
-},[initData])
-
-
- 
+   if (!initData) {
+    return <FullscreenLoader />;
+  }
 
   return (
-    <div style={{ padding: "1rem" }}>
-      {!initData && <p>Loading initial data...</p>}
-    </div>
+  <>
+   <ChatInterface
+      start={start}
+      showChat={showChat}
+      onBack={() => setShowChat(false)}
+      onOpenChat={() => setShowChat(true)}
+      lastScannedAt={lastScannedAt}
+      cooldownActive={cooldownActive}
+      runStatus={runStatus}
+      runLoading={runLoading}
+    />
+  </>
   );
 }
