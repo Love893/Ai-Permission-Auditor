@@ -90,33 +90,33 @@ resolver.define('processAudit', async ({ payload }) => {
       const payloadString = JSON.stringify(sqsPayload);
       const payloadSizeKB = (payloadString.length / 1024).toFixed(2);
 
-      const resp = await fetch("https://forgeapps.clovity.com/v0/api/sqs/send", {
-        method: "POST",
-        headers: {
-         "x-api-key": process.env.APP_RUNNER_API_KEY,
-         "Content-Type": "application/json",
-        },
-        body: payloadString,
-      });
+      // const resp = await fetch("https://forgeapps.clovity.com/v0/api/sqs/send", {
+      //   method: "POST",
+      //   headers: {
+      //    "x-api-key": process.env.APP_RUNNER_API_KEY,
+      //    "Content-Type": "application/json",
+      //   },
+      //   body: payloadString,
+      // });
 
       // console.log("Data", payloadString)
 
-      if (resp.ok) {
-        console.log(
-          `📤 SQS push success → Project: ${projData?.projectName || project.key}, 📏 Size: ${payloadSizeKB} KB`
-        );
-      } else {
-        console.error(
-          `❌ SQS push failed for Project: ${projData?.projectName || project.key}, Status: ${resp.status} - ${resp.statusText}`
-        );
-      }
+      // if (resp.ok) {
+      //   console.log(
+      //     `📤 SQS push success → Project: ${projData?.projectName || project.key}, 📏 Size: ${payloadSizeKB} KB`
+      //   );
+      // } else {
+      //   console.error(
+      //     `❌ SQS push failed for Project: ${projData?.projectName || project.key}, Status: ${resp.status} - ${resp.statusText}`
+      //   );
+      // }
     } catch (e) {
       console.error("❌ Failed to send to SQS:", e);
     }
 
     return {
       success: true,
-      event: "PermissionAuditor",
+      event: "permissionaudit",
       orgId: cloudId,
       project: projData || project, // return project-level result
       timestamp: new Date().toISOString(),
@@ -130,6 +130,7 @@ resolver.define('processAudit', async ({ payload }) => {
 
 resolver.define('setLastScannedAt', async ({ payload }) => {
   const { orgId, ts } = payload || {};
+  console.log("ooooo",orgId,ts)
   if (!orgId || typeof ts !== 'number') {
     return { success: false, error: 'orgId and numeric ts required' };
   }
@@ -143,6 +144,7 @@ resolver.define('getLastScannedAt', async ({ payload }) => {
   if (!orgId) return { lastScannedAt: null };
   const key = `lastScannedAt:${orgId}`;
   const val = await storage.get(key); // number (ms) or undefined
+  console.log('getLAst***************',val)
   return { lastScannedAt: val ?? null };
 });
 
@@ -210,9 +212,42 @@ resolver.define('calculateLastLoginForProject', async ({ payload }) => {
  * =========================
  */
 
-async function getAllIssuesForProject(projectKey) {
+// async function getAllIssuesForProject(projectKey) {
+//   let startAt = 0;
+//   const maxResults = 100;
+//   const issues = [];
+
+//   while (true) {
+//     const response = await api.asApp().requestJira(
+//       route`/rest/api/3/search?jql=project=${projectKey}&startAt=${startAt}&maxResults=${maxResults}`
+//     );
+
+//     if (!response.ok) {
+//       const error = await response.text();
+//       console.error(`Failed to fetch issues for ${projectKey}:`, error);
+//       break;
+//     }
+
+//     const data = await response.json();
+//     issues.push(...data.issues);
+
+//     if (startAt + maxResults >= data.total) {
+//       break;
+//     }
+//     startAt += maxResults;
+//   }
+
+//   return issues;
+// }
+
+resolver.define('getAllIssuesForProject', async ({ payload }) => {
+  const { projectKey } = payload || {};
+  if (!projectKey) {
+    throw new Error("projectKey is required");
+  }
+
   let startAt = 0;
-  const maxResults = 50;
+  const maxResults = 100;
   const issues = [];
 
   while (true) {
@@ -223,7 +258,7 @@ async function getAllIssuesForProject(projectKey) {
     if (!response.ok) {
       const error = await response.text();
       console.error(`Failed to fetch issues for ${projectKey}:`, error);
-      break;
+      throw new Error(error);
     }
 
     const data = await response.json();
@@ -236,7 +271,8 @@ async function getAllIssuesForProject(projectKey) {
   }
 
   return issues;
-}
+});
+
 
 // 🔹 Example: Get issues for ALL projects
 async function getAllProjectsAndIssues() {
@@ -484,35 +520,84 @@ async function buildLastLoginMap(lastLoginResults) {
   return map;
 }
 
+
+async function calculateRiskLevel(user, role, baselineRoles) {
+  const now = new Date();
+  const lastLogin = user.lastLogin ? new Date(user.lastLogin) : null;
+  const inactiveDays = lastLogin ? (now - lastLogin) / (1000 * 60 * 60 * 24) : Infinity;
+
+  // Default = low
+  let risk = "low";
+
+  // High risk: dormant admins or global roles
+  if (role === "Administrators" || user.globalRoles.includes("site-admin")) {
+    if (inactiveDays > 90) {
+      risk = "high"; // dormant admin
+    } else {
+      risk = "medium"; // active admin
+    }
+  }
+
+  // Medium risk: developers with write permissions
+  if (role === "Developers" && inactiveDays > 180) {
+    risk = "medium";
+  }
+
+  // Low risk: viewers or active standard users
+  if (role === "Viewers" && inactiveDays < 90) {
+    risk = "low";
+  }
+
+  // Inactive account
+  if (!user.active) {
+    risk = "high";
+  }
+
+  return risk;
+}
+
 // Expand actor → user details
 async function expandActorToUser(actor, allUsers, lastLoginResults) {
   const accountId = actor?.actorUser?.accountId;
   if (!accountId) return null;
 
-  let displayName = actor?.actorUser?.displayName || 'NAME NOT FOUND';
+  // ✅ Always prefer the displayName from allUsers
   const matched = allUsers.find((u) => u.accountId === accountId);
-  if (matched) {
-    displayName = matched.displayName || displayName;
-  }
+  const displayName = matched?.displayName || actor?.actorUser?.displayName || "NAME NOT FOUND";
 
   // Build last login map once and reuse
-  const lastLoginMap =await buildLastLoginMap(lastLoginResults);
-  const lastActivity = lastLoginMap.get(accountId) || 'Null';
+  const lastLoginMap = await buildLastLoginMap(lastLoginResults);
+  const lastActivity = lastLoginMap.get(accountId) || null;
 
   const groupsResp = await getGroupsOnAccId(accountId);
-  const groups = Array.isArray(groupsResp) 
-    ? groupsResp.map((g) => g.name).filter(Boolean) 
+  const groups = Array.isArray(groupsResp)
+    ? groupsResp.map((g) => g.name).filter(Boolean)
     : [];
+
+  // 🔹 Build the user object for risk calculation
+  const userForRisk = {
+    lastLogin: lastActivity,
+    active: matched?.active ?? actor?.actorUser?.active ?? true,
+    globalRoles: matched?.globalRoles || [], // default empty if not available
+  };
+
+  // Pick a role to feed into risk calculation (example: first group or "Unknown")
+  const role = groups.length > 0 ? groups[0] : "Unknown";
+
+  // 🔹 Calculate risk level dynamically
+  const riskLevel = await calculateRiskLevel(userForRisk, role);
 
   return {
     accountId,
     displayName,
-    lastLogin: lastActivity,
-    riskLevel: 'medium',
+    lastLogin: lastActivity || "Null",
+    riskLevel,
     groups,
-    active: matched?.active ?? actor?.actorUser?.active ?? true,
+    active: userForRisk.active,
   };
 }
+
+
 
 
 
