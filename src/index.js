@@ -1,5 +1,6 @@
 import Resolver from '@forge/resolver';
 import api, { route, storage } from '@forge/api';
+import { getUserLastActivityDates } from '../static/hello-world/src/utils/getUserLastActivityDates';
 
 const resolver = new Resolver();
 
@@ -275,21 +276,21 @@ resolver.define('getAllIssuesForProject', async ({ payload }) => {
 
 
 // 🔹 Example: Get issues for ALL projects
-async function getAllProjectsAndIssues() {
-  const projects = await getAllJiraProjects()
+// async function getAllProjectsAndIssues() {
+//   const projects = await getAllJiraProjects()
 
-  console.log("***Projects", projects);
+//   console.log("***Projects", projects);
 
 
-  const allData = [];
+//   const allData = [];
 
-  for (const project of projects) {
-    const projectIssues = await getAllIssuesForProject(project.key);
-    allData.push(...projectIssues);
-  }
+//   for (const project of projects) {
+//     const projectIssues = await getAllIssuesForProject(project.key);
+//     allData.push(...projectIssues);
+//   }
 
-  return allData;
-}
+//   return allData;
+// }
 
 
 
@@ -334,7 +335,7 @@ async function getAllJiraProjects() {
 
   while (true) {
     const res = await api.asApp().requestJira(
-      route`/rest/api/3/project/search?startAt=${startAt}&maxResults=${CONFIG.PAGE_SIZE_PROJECTS}`,
+      route`/rest/api/3/project/search?startAt=${startAt}&maxResults=${CONFIG.PAGE_SIZE_PROJECTS}&typeKey=software`,
       { headers: { Accept: 'application/json' } }
     );
 
@@ -521,7 +522,9 @@ async function buildLastLoginMap(lastLoginResults) {
 }
 
 
-async function calculateRiskLevel(user, role, baselineRoles) {
+async function calculateRiskLevel(user, role) {
+  // console.log("USER*****",user)
+  // console.log("ROLE*****",role)
   const now = new Date();
   const lastLogin = user.lastLogin ? new Date(user.lastLogin) : null;
   const inactiveDays = lastLogin ? (now - lastLogin) / (1000 * 60 * 60 * 24) : Infinity;
@@ -576,6 +579,7 @@ async function expandActorToUser(actor, allUsers, lastLoginResults) {
 
   // 🔹 Build the user object for risk calculation
   const userForRisk = {
+    displayName:displayName,
     lastLogin: lastActivity,
     active: matched?.active ?? actor?.actorUser?.active ?? true,
     globalRoles: matched?.globalRoles || [], // default empty if not available
@@ -595,57 +599,6 @@ async function expandActorToUser(actor, allUsers, lastLoginResults) {
     groups,
     active: userForRisk.active,
   };
-}
-
-
-
-
-
-async function getUserLastActivityDates({ issues, userDirectory }) {
-  const presentUserIds = new Set();
-  const userLatestActivity = new Map();
-
-  for (const it of issues) {
-    const updatedIso =
-      it?.fields?.updated || it?.fields?.statuscategorychangedate || it?.fields?.created;
-
-    let d = null;
-    if (updatedIso) {
-      const parsed = new Date(updatedIso);
-      if (!Number.isNaN(parsed.getTime())) {
-        d = parsed;
-      }
-    }
-
-    const assigneeId = it?.fields?.assignee?.accountId;
-    const reporterId = it?.fields?.reporter?.accountId;
-
-    if (assigneeId && userDirectory.has(assigneeId)) {
-      presentUserIds.add(assigneeId);
-      if (d) {
-        const cur = userLatestActivity.get(assigneeId);
-        if (!cur || d > cur) userLatestActivity.set(assigneeId, d);
-      }
-    }
-    if (reporterId && userDirectory.has(reporterId)) {
-      presentUserIds.add(reporterId);
-      if (d) {
-        const cur = userLatestActivity.get(reporterId);
-        if (!cur || d > cur) userLatestActivity.set(reporterId, d);
-      }
-    }
-  }
-
-  // Now build a clean list
-  return Array.from(presentUserIds).map((accountId) => {
-    const dirEntry = userDirectory.get(accountId);
-    const last = userLatestActivity.get(accountId) || null;
-    return {
-      accountId,
-      displayName: dirEntry?.displayName || 'Unknown',
-      lastActivityDate: last ? last.toISOString().slice(0, 10) : null,
-    };
-  });
 }
 
 
