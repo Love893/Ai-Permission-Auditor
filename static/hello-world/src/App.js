@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { invoke, view } from "@forge/bridge";
 import ChatInterface from './components/ChatInterface';
 import FullscreenLoader from "./components/FullscreenLoader";
+import { calculateLastLoginForProject } from "./utils/CalculateLastLoginForProject";
 
 export default function App() {
   const [initData, setInitData] = useState(null);   // data from initAudit
@@ -46,6 +47,7 @@ useEffect(() => {
   (async () => {
     try {
       const res = await invoke('getLastScannedAt', { orgId: cloudId });
+      console.log("getlastScanned :",res)
       if (res?.lastScannedAt != null) {
         setLastScannedAt(Number(res.lastScannedAt));
       }
@@ -67,10 +69,11 @@ const start = async () => {
       setRunStatus(`🚀 Processing project: ${project.key}`);
 
       // 1️⃣ First fetch last login for this project
-      const lastLoginResp = await invoke("calculateLastLoginForProject", {
-        project,
-        allUsers: initData.allUsers,
-      });
+      // const lastLoginResp = await invoke("calculateLastLoginForProject", {
+      //   project,
+      //   allUsers: initData.allUsers,
+      // });
+      const lastLoginResp = await calculateLastLoginForProject({project , allUsers:initData.allUsers})
       console.log(`LastLoginResp [${project.key}]***`, lastLoginResp);
 
       // 2️⃣ Pass it directly into processAudit for this project
@@ -109,6 +112,8 @@ const start = async () => {
     return false;
   }
 };
+
+console.log("last:",lastScannedAt)
 
 
    if (!initData) {
