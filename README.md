@@ -3,96 +3,98 @@
 A comprehensive Jira Forge application that analyzes user and project permissions, detects over-privileged roles, flags dormant admins, and provides AI-powered insights for maintaining least-privilege governance and security compliance in Jira.
 
 ## 🎯 What It Solves
-Role Risk Audit: Scans global permission schemes to detect over-permissioned users.
+-**Role Risk Audit**: Scans global permission schemes to detect over-permissioned users.
 
-Least Privilege Analysis: Compares current roles against predefined or learned access baselines to identify excessive permissions.
+-**Least Privilege Analysis**: Compares current roles against predefined or learned access baselines to identify excessive permissions.
 
-Dormant Admin Detection: Flags users with elevated roles but no recent activity.
+-**Dormant Admin Detection**: Flags users with elevated roles but no recent activity.
 
-Remediation Suggestions: Provides actionable recommendations to downgrade or adjust user roles.
+-**Remediation Suggestions**: Provides actionable recommendations to downgrade or adjust user roles.
 
-Group & Access Overlap Analysis: Highlights redundant access via multiple groups and enforces custom access rules.
+-**Group & Access Overlap Analysis**: Highlights redundant access via multiple groups and enforces custom access rules.
 
 ## 🏗️ Architecture
 
 ### Backend (Forge Functions)
-Project Permission Processing: Fetches and analyzes Jira projects, roles, and user permissions.
+-**Project Permission Processing**: Fetches and analyzes Jira projects, roles, and user permissions.
 
-User & Role Data Aggregation: Summarizes project permissions, global permissions, and user activity.
+-**User & Role Data Aggregation**: Summarizes project permissions, global permissions, and user activity.
 
-SQS/Upload Service: Sends processed permission data to external analysis or reporting service.
+-**SQS/Upload Service**: Sends processed permission data to external analysis or reporting service.
 
-Storage & Audit Trail: Tracks last scan timestamps, remediation history, and user preferences.
+-**Storage & Audit Trail**: Tracks last scan timestamps, remediation history, and user preferences.
 
-Frontend (Forge React App)
+## Frontend (Forge React App)
 
-Jira Global Page Integration: Embedded dashboard for seamless access to permission insights.
+-**Jira Global Page Integration**: Embedded dashboard for seamless access to permission insights.
 
-AI Chat Interface: LLM-powered assistant for permission risk analysis and remediation guidance.
+-**AI Chat Interface**: LLM-powered assistant for permission risk analysis and remediation guidance.
 
-Progress & Scan Tracking: Real-time monitoring of permission scans and role audits.
+-**Progress & Scan Tracking**: Real-time monitoring of permission scans and role audits.
 
-Export Reports: PDF generation for audit summaries and compliance documentation.
+-**Export Reports**: PDF generation for audit summaries and compliance documentation.
 
-🚀 Features
-Core Functionality
+#### 🚀 Features
+## Core Functionality
 
-Automated Permission Scanning: Processes all projects and roles in your Jira instance.
+-**Automated Permission Scanning**: Processes all projects and roles in your Jira instance.
 
-Smart Pagination & Batching: Efficiently handles large projects with thousands of issues and users.
+-**Smart Pagination & Batching**: Efficiently handles large projects with thousands of issues and users.
 
-User Activity Mapping: Tracks last login/activity per user to identify dormant admins.
+-**User Activity Mapping**: Tracks last login/activity per user to identify dormant admins.
 
-Role & Permission Analysis: Detects excessive privileges and redundant group memberships.
+-**Role & Permission Analysis**: Detects excessive privileges and redundant group memberships.
 
-Status & Risk Distribution: Categorizes roles by risk tier (Critical, Warning, Info).
+-**Status & Risk Distribution**: Categorizes roles by risk tier (Critical, Warning, Info).
 
-AI Assistant
+## AI Assistant
 
-Natural Language Queries: Ask questions about access risks, compliance, or role justifications.
+-**Natural Language Queries**: Ask questions about access risks, compliance, or role justifications.
 
-Policy Matching: Checks user access against org-defined rules or least-privilege baselines.
+-**Policy Matching**: Checks user access against org-defined rules or least-privilege baselines.
 
-Remediation Suggestions: LLM proposes actionable changes for over-permissioned or dormant users.
+-**Remediation Suggestions**: LLM proposes actionable changes for over-permissioned or dormant users.
 
-Interactive Follow-ups: Intelligent conversation flow for iterative audits and explanations.
+--**Interactive Follow-ups**: Intelligent conversation flow for iterative audits and explanations.
 
-Performance & Monitoring
+## Performance & Monitoring
 
-Large Project Detection: Alerts when projects have unusually high numbers of roles or users.
+-**Large Project Detection**: Alerts when projects have unusually high numbers of roles or users.
 
-Processing Time Tracking: Monitors scan performance and efficiency.
+-**Processing Time Tracking**: Monitors scan performance and efficiency.
 
-Error Handling & Logging: Detailed audit logs and structured error reporting.
+-**Error Handling & Logging**: Detailed audit logs and structured error reporting.
 
-Cache Management: Optimizes API calls to Jira and reduces repeated fetches.
+-**Cache Management**: Optimizes API calls to Jira and reduces repeated fetches.
 
-📋 Requirements
+## 📋 Requirements
 
-Node.js: Version 18+ (Forge runtime: nodejs22.x)
+-**Node.js**: Version 18+ (Forge runtime: nodejs22.x)
 
-Forge CLI: Latest version installed and configured
+-**Forge CLI**: Latest version installed and configured
 
-Jira Cloud: Admin access required for project and permission APIs
+-**Jira Cloud**: Admin access required for project and permission APIs
 
-API Keys: External service keys for SQS or advanced AI features
+-**API Keys**: External service keys for SQS or advanced AI features
 
-🛠️ Installation & Setup
-1. Prerequisites
+## 🛠️ Installation & Setup
+### 1. Prerequisites
+```bash
 # Install Forge CLI globally
 npm install -g @forge/cli
 
 # Verify installation
 forge --version
-
-2. Project Setup
+```
+### 2. Project Setup
+```bash
 # Install project dependencies
 npm install
 
 # Install frontend dependencies
 cd static/hello-world
 npm install
-
+```
 ### 3. Configuration
 ```bash
 # Set required environment variables
@@ -153,133 +155,133 @@ npm run build
 npm run lint
 ```
 
-📊 Usage
-1. Initial Setup
+## 📊 Usage
+### 1. Initial Setup
 
-Install the AI Permission Auditor app in your Jira instance
+-Install the AI Permission Auditor app in your Jira instance
 
-Grant necessary permissions (read:jira-user, read:jira-work, etc.)
+-Grant necessary permissions (read:jira-user, read:jira-work, etc.)
 
-Configure optional integrations (Slack/Email for scheduled reports)
+-Configure optional integrations (Slack/Email for scheduled reports)
 
-2. Running Audits
+### 2. Running Audits
 
-Navigate to the Permission Auditor global page
+-Navigate to the Permission Auditor global page
 
-Click "Run Permission Audit"
+-Click "Run Permission Audit"
 
-Monitor progress with real-time audit status updates
+-Monitor progress with real-time audit status updates
 
-Review results in the interactive dashboard with filters by project, group, or user
+-Review results in the interactive dashboard with filters by project, group, or user
 
-3. AI Assistant
+### 3. AI Assistant
 
-Ask questions like “Why is this user flagged as risky?”
+-Ask questions like “Why is this user flagged as risky?”
 
-Request compliance summaries aligned with SOX/ISO frameworks
+-Request compliance summaries aligned with SOX/ISO frameworks
 
-Get downgrade or remediation suggestions with justifications
+-Get downgrade or remediation suggestions with justifications
 
-Export detailed permission hygiene reports as PDF/CSV
+-Export detailed permission hygiene reports as PDF/CSV
 
-🔒 Security & Permissions
-Required Scopes
+## 🔒 Security & Permissions
+## Required Scopes
 
-read:jira-user: Access user and group membership details
+-read:jira-user: Access user and group membership details
 
-read:jira-work: Fetch project and permission scheme data
+-read:jira-work: Fetch project and permission scheme data
 
-manage:jira-configuration: Access configuration for permissions
+-manage:jira-configuration: Access configuration for permissions
 
-storage:app: Store remediation history and audit trails
+-storage:app: Store remediation history and audit trails
 
-External Access
+## External Access
 
-LLM/AI Services: Risk classification, misuse explanation, remediation suggestions
+-**LLM/AI Services**: Risk classification, misuse explanation, remediation suggestions
 
-Report Delivery: Slack/email for scheduled audit exports
+-**Report Delivery**: Slack/email for scheduled audit exports
 
-Rate Limiting: Built-in retry and backoff for Jira API stability
+-**Rate Limiting**: Built-in retry and backoff for Jira API stability
 
-📈 Monitoring & Logging
-Log Levels
+## 📈 Monitoring & Logging
+## Log Levels
 
-Info: Audit scans started/completed, remediation actions
+-**Info**: Audit scans started/completed, remediation actions
 
-Warning: Excessive Admin roles, group overlaps detected
+-**Warning**: Excessive Admin roles, group overlaps detected
 
-Error: Jira API failures, LLM call issues, report generation errors
+-**Error**: Jira API failures, LLM call issues, report generation errors
 
-Key Metrics
+## Key Metrics
 
-Number of elevated roles reduced
+-Number of elevated roles reduced
 
-Dormant Admins identified
+-Dormant Admins identified
 
-Policy violations flagged vs. resolved
+-Policy violations flagged vs. resolved
 
-Audit report generation times
+-Audit report generation times
 
-External AI service performance
+-External AI service performance
 
-🚨 Troubleshooting
-Common Issues
+## 🚨 Troubleshooting
+### Common Issues
 
-Permission Errors: Ensure the app has manage:jira-configuration and read:jira-user
+-**Permission Errors**: Ensure the app has manage:jira-configuration and read:jira-user
 
-Audit Not Running: Check if scheduled tasks are enabled in Forge triggers
+-**Audit Not Running**: Check if scheduled tasks are enabled in Forge triggers
 
-LLM Response Failures: Verify external AI API credentials and quotas
+-**LLM Response Failures**: Verify external AI API credentials and quotas
 
-Slow Scans: Large instances with 10k+ users may require batching
+-**Slow Scans**: Large instances with 10k+ users may require batching
 
-Debug Mode
+## Debug Mode
 # Enable verbose Forge logging
-export FORGE_DEBUG=true
+-export FORGE_DEBUG=true
 
 # Check app deployment status
-forge status
+-forge status
 
 # Stream logs for debugging
-forge logs
+-forge logs
 
 
-🤝 Contributing
+## 🤝 Contributing
 
-We welcome contributions to the AI Permission Auditor!
+-We welcome contributions to the AI Permission Auditor!
 
-Fork this repository
+-Fork this repository
 
-Create a feature branch (git checkout -b feature/your-feature)
+-Create a feature branch (git checkout -b feature/your-feature)
 
-Make your changes with proper tests and logging
+-Make your changes with proper tests and logging
 
-Submit a pull request with a clear description of your changes and their purpose
+-Submit a pull request with a clear description of your changes and their purpose
 
-Code Standards
+## Code Standards
 
-Follow the existing Forge app code style and structure
+-Follow the existing Forge app code style and structure
 
-Ensure comprehensive logging for all new processors and services
+-Ensure comprehensive logging for all new processors and services
 
-Handle Jira API and LLM external calls with proper error handling/retries
+-Handle Jira API and LLM external calls with proper error handling/retries
 
-Update inline documentation and README for API or feature changes
+-Update inline documentation and README for API or feature changes
 
-📄 License
+## 📄 License
 
-This project is licensed under the MIT License – see the LICENSE
+-This project is licensed under the MIT License – see the LICENSE
  file for details.
 
-🆘 Support
+## 🆘 Support
 
-Documentation: Forge Developer Portal
+-**Documentation**: Forge Developer Portal
 
-Issues: Report bugs, feature requests, or audit mismatches via GitHub Issues
+-**Issues**: Report bugs, feature requests, or audit mismatches via GitHub Issues
 
-Community: Join the Atlassian Community
+-**Community**: Join the Atlassian Community
  for discussions
 
-Forge Help: Get Help with Forge
+-**Forge Help**: Get Help with Forge
 
-Security Feedback: For permission-related concerns, open a private issue or contact the maintainers directly
+-**Security Feedback**: For permission-related concerns, open a private issue or contact the maintainers directly
