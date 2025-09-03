@@ -1,6 +1,7 @@
 import Resolver from '@forge/resolver';
 import api, { route, storage } from '@forge/api';
 import { getUserLastActivityDates } from '../static/hello-world/src/utils/getUserLastActivityDates';
+import { logger } from './utils/logger';
 
 const resolver = new Resolver();
 
@@ -24,152 +25,91 @@ const CONFIG = {
 const groupCache = new Map(); // accountId -> groups
 const userIndex = new Map(); // accountId -> user
 
-/**
- * =========================
- * Top-level resolver
- * =========================
- */
-// ✅ First resolver: fetch base data
-resolver.define('initAudit', async ({ payload }) => {
-  try {
-    const [allUsers, allProjects, groupedPermissionKeys] = await Promise.all([
-      getAllJiraUsers(),
-      getAllJiraProjects(),
-      getAllPermissions(),
-    ]);
-
-    return {
-      success: true,
-      allUsers,
-      allProjects,
-      groupedPermissionKeys,
-    };
-  } catch (error) {
-    console.error('initAudit failed:', error);
-    return { success: false, error: error.message || String(error) };
-  }
-});
-
-// ✅ Second resolver: consume inputs, do calculations, push to DB
-resolver.define('processAudit', async ({ payload }) => {
-  const { cloudId, allUsers, allProjects, groupedPermissionKeys,lastLoginResults } = payload || {};
-  // console.log("lastlogin***",JSON.stringify(lastLoginResults))
-
-  try {
-    if (!allProjects || allProjects.length === 0) {
-      throw new Error("No project provided to processAudit");
-    }
-
-    // index users (if not already cached)
-    for (const u of allUsers) userIndex.set(u.accountId, u);
-
-    // compute global permissions once
-    const globalPermissions = await checkGlobalPermissionsForAll(allUsers, groupedPermissionKeys);
-
-    // ✅ take only the first project (frontend calls this per project)
-    const project = allProjects[0];
-    const out = [];
-
-    const settled = await Promise.allSettled([
-      buildProjectPermissionData(project, allUsers, globalPermissions ,lastLoginResults ),
-    ]);
-
-    out.push(...settled.filter((s) => s.status === "fulfilled" && s.value).map((s) => s.value));
-
-    const [projData] = out;
-
-    // 🔹 Push to SQS
-    try {
-      const sqsPayload = {
-        event: "permissionaudit",
-        orgId: cloudId,
-        data: out,
-        // globalPermissions,
-        timestamp: new Date().toISOString(),
-      };
-
-      const payloadString = JSON.stringify(sqsPayload);
-      const payloadSizeKB = (payloadString.length / 1024).toFixed(2);
-
-      // const resp = await fetch("https://forgeapps.clovity.com/v0/api/sqs/send", {
-      //   method: "POST",
-      //   headers: {
-      //    "x-api-key": process.env.APP_RUNNER_API_KEY,
-      //    "Content-Type": "application/json",
-      //   },
-      //   body: payloadString,
-      // });
-
-      // console.log("Data", payloadString)
-
-      // if (resp.ok) {
-      //   console.log(
-      //     `📤 SQS push success → Project: ${projData?.projectName || project.key}, 📏 Size: ${payloadSizeKB} KB`
-      //   );
-      // } else {
-      //   console.error(
-      //     `❌ SQS push failed for Project: ${projData?.projectName || project.key}, Status: ${resp.status} - ${resp.statusText}`
-      //   );
-      // }
-    } catch (e) {
-      console.error("❌ Failed to send to SQS:", e);
-    }
-
-    return {
-      success: true,
-      event: "permissionaudit",
-      orgId: cloudId,
-      project: projData || project, // return project-level result
-      timestamp: new Date().toISOString(),
-    };
-  } catch (error) {
-    console.error("processAudit failed:", error);
-    return { success: false, error: error.message || String(error) };
-  }
-});
-
 
 resolver.define('setLastScannedAt', async ({ payload }) => {
-  const { orgId, ts } = payload || {};
-  console.log("ooooo",orgId,ts)
-  if (!orgId || typeof ts !== 'number') {
-    return { success: false, error: 'orgId and numeric ts required' };
+  try {
+    const { orgId, ts } = payload || {};
+    // logger.info("setLastScannedAt called", { orgId, ts });
+
+    if (!orgId || typeof ts !== 'number') {
+      logger.warn("Invalid input in setLastScannedAt", { orgId, ts });
+      return { success: false, error: 'orgId and numeric ts required' };
+    }
+
+    const key = `lastScannedAt:${orgId}`;
+    await storage.set(key, ts);
+
+    // logger.info("Successfully stored lastScannedAt", { key, ts });
+
+    return { success: true };
+  } catch (err) {
+    logger.error("Error in setLastScannedAt", { error: err.message, stack: err.stack });
+    return { success: false, error: err.message || String(err) };
   }
-  const key = `lastScannedAt:${orgId}`;
-  await storage.set(key, ts);
-  return { success: true };
 });
 
+
+
 resolver.define('getLastScannedAt', async ({ payload }) => {
-  const { orgId } = payload || {};
-  if (!orgId) return { lastScannedAt: null };
-  const key = `lastScannedAt:${orgId}`;
-  const val = await storage.get(key); // number (ms) or undefined
-  console.log('getLAst***************',val)
-  return { lastScannedAt: val ?? null };
+  try {
+    const { orgId } = payload || {};
+    if (!orgId) {
+      logger.warn("getLastScannedAt called without orgId");
+      return { lastScannedAt: null };
+    }
+
+    const key = `lastScannedAt:${orgId}`;
+    // logger.debug("Fetching lastScannedAt key", { key });
+
+    const val = await storage.get(key); // number (ms) or undefined
+    // logger.info("Fetched lastScannedAt value", { key, value: val });
+
+    return { lastScannedAt: val ?? null };
+  } catch (err) {
+    logger.error("Error in getLastScannedAt", { error: err.message, stack: err.stack });
+    return { lastScannedAt: null, error: err.message || String(err) };
+  }
 });
 
 
 resolver.define('queryPermissionAuditor', async ({ payload }) => {
-  const { query, event = 'permissionaudit', orgId } = payload || {};
-  console.log("Json", JSON.stringify({ query, event, orgId }))
+  try {
+    const { query, event = 'permissionaudit', orgId } = payload || {};
 
-  const resp = await fetch('https://forgeapps.clovity.com/v0/api/query', {
-    method: 'POST',
-    headers: {
-      'x-api-key': process.env.APP_RUNNER_API_KEY,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ query, event, orgId })
-  });
-  console.log("resp*********", resp)
-  if (!resp.ok) {
-    const text = await resp.text();
-    return { success: false, error: `Upstream error ${resp.status}: ${text?.slice(0, 400) || 'Unknown'}` };
+    logger.debug("queryPermissionAuditor called", { query, event, orgId });
+
+    const resp = await fetch('https://forgeapps.clovity.com/v0/api/query', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.APP_RUNNER_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ query, event, orgId })
+    });
+
+    logger.info("Upstream response received", { status: resp.status, ok: resp.ok });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      logger.error("Upstream error in queryPermissionAuditor", { status: resp.status, message: text?.slice(0, 400) || 'Unknown' });
+      return { 
+        success: false, 
+        error: `Upstream error ${resp.status}: ${text?.slice(0, 400) || 'Unknown'}` 
+      };
+    }
+
+    const data = await resp.json();
+    // logger.info("queryPermissionAuditor succeeded", { data });
+
+    return { success: true, data };
+
+  } catch (err) {
+    logger.error("queryPermissionAuditor failed", { error: err.message, stack: err.stack });
+    return { success: false, error: err.message || String(err) };
   }
-  const data = await resp.json();
-  return { success: true, data };
 });
+
+
 
 
 resolver.define('calculateLastLoginForProject', async ({ payload }) => {
@@ -177,20 +117,26 @@ resolver.define('calculateLastLoginForProject', async ({ payload }) => {
 
   try {
     if (!project?.key) {
+      logger.warn("Project key missing in calculateLastLoginForProject", { payload });
       throw new Error("Project key required");
     }
 
+    // logger.info("Calculating last login for project", { projectKey: project.key, projectName: project.displayName });
+
     // ✅ ensure users are indexed
     for (const u of allUsers) userIndex.set(u.accountId, u);
+    // logger.debug("User index populated", { userCount: allUsers.length });
 
     // 🔹 fetch issues only for this project
     const projectIssues = await getAllIssuesForProject(project.key);
+    // logger.info("Fetched project issues", { projectKey: project.key, issueCount: projectIssues.length });
 
     // 🔹 calculate last login (last activity per user)
     const lastActivityDates = await getUserLastActivityDates({
       issues: projectIssues,
       userDirectory: userIndex,
     });
+    // logger.info("Calculated last activity dates for users", { userCount: lastActivityDates.length });
 
     // Return clean structure
     return {
@@ -201,459 +147,432 @@ resolver.define('calculateLastLoginForProject', async ({ payload }) => {
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
-    console.error("calculateLastLoginForProject failed:", error);
+    logger.error("calculateLastLoginForProject failed", { error: error.message, stack: error.stack, projectKey: project?.key });
     return { success: false, error: error.message || String(error) };
   }
 });
 
 
-/**
- * =========================
- * Fetchers
- * =========================
- */
 
-// async function getAllIssuesForProject(projectKey) {
-//   let startAt = 0;
-//   const maxResults = 100;
-//   const issues = [];
+resolver.define('sendToSqs', async ({ payload }) => {
+  try {
+    const payloadData = payload.payload;
+    const payloadString = JSON.stringify(payloadData);
+    const payloadSizeKB = (payloadString.length / 1024).toFixed(2);
 
-//   while (true) {
-//     const response = await api.asApp().requestJira(
-//       route`/rest/api/3/search?jql=project=${projectKey}&startAt=${startAt}&maxResults=${maxResults}`
-//     );
+    logger.info("Payload size before sending to SQS", { sizeKB: payloadSizeKB, length: payloadString.length });
+    logger.debug("Payload JSON", { payload: payloadData });
 
-//     if (!response.ok) {
-//       const error = await response.text();
-//       console.error(`Failed to fetch issues for ${projectKey}:`, error);
-//       break;
-//     }
-
-//     const data = await response.json();
-//     issues.push(...data.issues);
-
-//     if (startAt + maxResults >= data.total) {
-//       break;
-//     }
-//     startAt += maxResults;
-//   }
-
-//   return issues;
-// }
-
-resolver.define('getAllIssuesForProject', async ({ payload }) => {
-  const { projectKey } = payload || {};
-  if (!projectKey) {
-    throw new Error("projectKey is required");
-  }
-
-  let startAt = 0;
-  const maxResults = 100;
-  const issues = [];
-
-  while (true) {
-    const response = await api.asApp().requestJira(
-      route`/rest/api/3/search?jql=project=${projectKey}&startAt=${startAt}&maxResults=${maxResults}`
-    );
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.error(`Failed to fetch issues for ${projectKey}:`, error);
-      throw new Error(error);
-    }
-
-    const data = await response.json();
-    issues.push(...data.issues);
-
-    if (startAt + maxResults >= data.total) {
-      break;
-    }
-    startAt += maxResults;
-  }
-
-  return issues;
-});
-
-
-// 🔹 Example: Get issues for ALL projects
-// async function getAllProjectsAndIssues() {
-//   const projects = await getAllJiraProjects()
-
-//   console.log("***Projects", projects);
-
-
-//   const allData = [];
-
-//   for (const project of projects) {
-//     const projectIssues = await getAllIssuesForProject(project.key);
-//     allData.push(...projectIssues);
-//   }
-
-//   return allData;
-// }
-
-
-
-
-async function getAllJiraUsers() {
-  const users = [];
-  let startAt = 0;
-
-  while (true) {
-    const res = await api.asApp().requestJira(
-      route`/rest/api/3/users/search?startAt=${startAt}&maxResults=${CONFIG.PAGE_SIZE_USERS}`,
-      { headers: { Accept: 'application/json' } }
-    );
+    const res = await fetch('https://forgeapps.clovity.com/v0/api/sqs/send', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.APP_RUNNER_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: payloadString,
+    });
 
     if (!res.ok) {
-      console.error(`Error fetching users: ${res.status} - ${await res.text()}`);
-      break;
+      const errorText = await res.text();
+      logger.error("Failed to send payload to SQS", { status: res.status, errorText, payloadLength: payloadData.length });
+      return { success: false, error: errorText };
     }
 
     const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) break;
+    logger.info("Payload sent successfully to SQS", { response: data, payloadLength: payloadData.length });
 
-    users.push(
-      ...data
+    return { success: true, data };
+  } catch (err) {
+    logger.error("Error sending payload to SQS", { error: err.message, stack: err.stack });
+    return { success: false, error: err.message || String(err) };
+  }
+});
+
+
+
+
+resolver.define('getAllIssuesForProject', async ({ payload }) => {
+  try {
+    const { projectKey } = payload || {};
+    if (!projectKey) {
+      logger.warn("getAllIssuesForProject called without projectKey", { payload });
+      throw new Error("projectKey is required");
+    }
+
+    // logger.info("Fetching all issues for project", { projectKey });
+
+    let startAt = 0;
+    const maxResults = 100;
+    const issues = [];
+
+    while (true) {
+      const response = await api.asApp().requestJira(
+        route`/rest/api/3/search?jql=project=${projectKey}&startAt=${startAt}&maxResults=${maxResults}`
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error("Failed to fetch issues for project", { projectKey, status: response.status, error: errorText });
+        throw new Error(errorText);
+      }
+
+      const data = await response.json();
+      issues.push(...data.issues);
+      // logger.debug("Fetched batch of issues", { projectKey, startAt, batchCount: data.issues.length, totalIssues: data.total });
+
+      if (startAt + maxResults >= data.total) {
+        break;
+      }
+      startAt += maxResults;
+    }
+
+    // logger.info("Completed fetching all issues for project", { projectKey, totalFetched: issues.length });
+
+    return issues;
+  } catch (err) {
+    logger.error("Error in getAllIssuesForProject", { error: err.message, stack: err.stack });
+    throw err;
+  }
+});
+
+
+
+resolver.define('getAllJiraUsers', async () => {
+  try {
+    const users = [];
+    let startAt = 0;
+
+    // logger.info("Starting to fetch all Jira users");
+
+    while (true) {
+      const res = await api.asApp().requestJira(
+        route`/rest/api/3/users/search?startAt=${startAt}&maxResults=${CONFIG.PAGE_SIZE_USERS}`,
+        { headers: { Accept: 'application/json' } }
+      );
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        logger.error("Error fetching Jira users", { status: res.status, errorText, startAt });
+        throw new Error(`Failed to fetch users: ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) {
+        logger.info("No more users to fetch, ending pagination", { startAt });
+        break;
+      }
+
+      const filteredUsers = data
         .filter((u) => u.accountType === 'atlassian' && u.accountId && u.displayName)
         .map((u) => ({
           accountId: u.accountId,
           displayName: u.displayName,
           active: u.active ?? true,
-        }))
-    );
+        }));
 
-    startAt += CONFIG.PAGE_SIZE_USERS;
-  }
+      users.push(...filteredUsers);
+      // logger.debug("Fetched a batch of Jira users", { batchCount: filteredUsers.length, startAt, totalFetched: users.length });
 
-  return users;
-}
-
-async function getAllJiraProjects() {
-  const projects = [];
-  let startAt = 0;
-
-  while (true) {
-    const res = await api.asApp().requestJira(
-      route`/rest/api/3/project/search?startAt=${startAt}&maxResults=${CONFIG.PAGE_SIZE_PROJECTS}&typeKey=software`,
-      { headers: { Accept: 'application/json' } }
-    );
-
-    if (!res.ok) {
-      console.error(`Error fetching projects: ${res.status} - ${await res.text()}`);
-      break;
+      startAt += CONFIG.PAGE_SIZE_USERS;
     }
 
-    const data = await res.json();
-    const values = data?.values || [];
-    if (values.length === 0) break;
+    // logger.info("Completed fetching all Jira users", { totalUsers: users.length });
+    return users;
+  } catch (err) {
+    logger.error("Error in getAllJiraUsers", { error: err.message, stack: err.stack });
+    throw err;
+  }
+});
 
-    projects.push(
-      ...values.map((p) => ({
+
+
+/**
+ * 🔹 Get all Jira Projects
+ */
+resolver.define('getAllJiraProjects', async () => {
+  try {
+    const projects = [];
+    let startAt = 0;
+
+    // logger.info("Starting to fetch all Jira projects");
+
+    while (true) {
+      const res = await api.asApp().requestJira(
+        route`/rest/api/3/project/search?startAt=${startAt}&maxResults=${CONFIG.PAGE_SIZE_PROJECTS}&typeKey=software`,
+        { headers: { Accept: 'application/json' } }
+      );
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        logger.error("Error fetching Jira projects", { status: res.status, errorText, startAt });
+        throw new Error(`Failed to fetch projects: ${res.status}`);
+      }
+
+      const data = await res.json();
+      const values = data?.values || [];
+      if (values.length === 0) {
+        logger.info("No more projects to fetch, ending pagination", { startAt });
+        break;
+      }
+
+      const mappedProjects = values.map((p) => ({
         key: p.key,
         id: p.id,
         displayName: p.name,
-      }))
-    );
+      }));
 
-    startAt += CONFIG.PAGE_SIZE_PROJECTS;
+      projects.push(...mappedProjects);
+      // logger.debug("Fetched a batch of Jira projects", { batchCount: mappedProjects.length, startAt, totalFetched: projects.length });
+
+      startAt += CONFIG.PAGE_SIZE_PROJECTS;
+    }
+
+    // logger.info("Completed fetching all Jira projects", { totalProjects: projects.length });
+    return projects;
+  } catch (err) {
+    logger.error("Error in getAllJiraProjects", { error: err.message, stack: err.stack });
+    throw err;
   }
+});
 
-  return projects;
-}
 
-async function getAllPermissions() {
-  const res = await api.asApp().requestJira(route`/rest/api/3/permissions`, {
-    headers: { Accept: 'application/json' },
-  });
+/**
+ * 🔹 Get all Permissions (Global & Project)
+ */
+resolver.define('getAllPermissions', async () => {
+  try {
+    // logger.info("Fetching all Jira permissions");
 
-  if (!res.ok) {
-    throw new Error(`Failed to fetch permissions: ${res.status} - ${await res.text()}`);
+    const res = await api.asApp().requestJira(route`/rest/api/3/permissions`, {
+      headers: { Accept: 'application/json' },
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      logger.error("Failed to fetch Jira permissions", { status: res.status, errorText });
+      throw new Error(`Failed to fetch permissions: ${res.status} - ${errorText}`);
+    }
+
+    const data = await res.json();
+    const allPermissions = Object.values(data?.permissions || {});
+
+    const globalPermissions = allPermissions.filter((p) => p.type === 'GLOBAL').map((p) => p.key);
+    const projectPermissions = allPermissions.filter((p) => p.type === 'PROJECT').map((p) => p.key);
+
+    // logger.info("Fetched Jira permissions successfully", { globalCount: globalPermissions.length, projectCount: projectPermissions.length });
+
+    return {
+      global: globalPermissions,
+      project: projectPermissions,
+    };
+  } catch (err) {
+    logger.error("Error in getAllPermissions", { error: err.message, stack: err.stack });
+    throw err;
   }
-
-  const data = await res.json();
-  const all = Object.values(data?.permissions || {});
-
-  return {
-    global: all.filter((p) => p.type === 'GLOBAL').map((p) => p.key),
-    project: all.filter((p) => p.type === 'PROJECT').map((p) => p.key),
-  };
-}
+});
 
 /**
  * =========================
  * Global permission checks
  * =========================
  */
-async function checkGlobalPermissionsForAll(users, groupedPermissionKeys) {
-  const results = [];
-  const batchSize = CONFIG.USERS_CHECK_BATCH_SIZE;
 
-  for (let i = 0; i < users.length; i += batchSize) {
-    const batch = users.slice(i, i + batchSize);
+resolver.define('checkUserPermissions', async ({ payload }) => {
+  try {
+    const { accountId, globalPermissions, displayName } = payload || {};
 
-    const settled = await Promise.allSettled(
-      batch.map(async (user) => {
-        const res = await api.asApp().requestJira(route`/rest/api/3/permissions/check`, {
-          method: 'POST',
-          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            accountId: user.accountId,
-            globalPermissions: groupedPermissionKeys.global,
-          }),
-        });
-
-        if (!res.ok) {
-          console.error(`Global perm check failed for ${user.accountId}: ${res.status}`);
-          return null;
-        }
-
-        const json = await res.json();
-        return {
-          user: { accountId: user.accountId, displayName: user.displayName },
-          permissions: json?.globalPermissions || [],
-        };
-      })
-    );
-
-    results.push(...settled.filter((s) => s.status === 'fulfilled' && s.value).map((s) => s.value));
-  }
-
-  return results;
-}
-
-/**
- * =========================
- * Projects + Roles
- * =========================
- */
-async function getAllProjectPermissionSchemes(projects, allUsers) {
-  const out = [];
-
-  for (let i = 0; i < projects.length; i += CONFIG.PROJECTS_CONCURRENCY) {
-    const slice = projects.slice(i, i + CONFIG.PROJECTS_CONCURRENCY);
-
-    const settled = await Promise.allSettled(
-      slice.map((p) => buildProjectPermissionData(p, allUsers))
-    );
-
-    out.push(...settled.filter((s) => s.status === 'fulfilled' && s.value).map((s) => s.value));
-  }
-
-  return out;
-}
-
-async function buildProjectPermissionData(project, allUsers, globalPermissions, lastLoginResults) {
-  const [permissionScheme, roleDetails] = await Promise.all([
-    getProjectPermissionScheme(project.id),
-    getRoleIdScheme(project.id),
-  ]);
-
-  const roles = await buildRolesForProject(project.id, roleDetails || [], allUsers, lastLoginResults);
-
-  return {
-    projectId: project.id,
-    projectName: project.displayName,
-    permissionScheme: {
-      schemeId: permissionScheme?.id || null,
-      schemeName: permissionScheme?.name || null,
-      roles,
-    },
-    globalPermissions,
-  };
-}
-
-async function buildRolesForProject(projectId, roleDetails, allUsers, lastLoginResults) {
-  if (!Array.isArray(roleDetails) || roleDetails.length === 0) return [];
-
-  const rolesOut = [];
-  for (let i = 0; i < roleDetails.length; i += CONFIG.ROLES_CONCURRENCY) {
-    const slice = roleDetails.slice(i, i + CONFIG.ROLES_CONCURRENCY);
-
-    const settled = await Promise.allSettled(
-      slice.map(async (role) => {
-        const members = await getRoleUsersScheme(projectId, role.id);
-        const actors = members?.actors || [];
-
-        const usersWithGroups = [];
-        for (let j = 0; j < actors.length; j += CONFIG.MEMBERS_CONCURRENCY) {
-          const memberSlice = actors.slice(j, j + CONFIG.MEMBERS_CONCURRENCY);
-
-          const results = await Promise.allSettled(
-            memberSlice.map((actor) => expandActorToUser(actor, allUsers, lastLoginResults))
-          );
-
-          usersWithGroups.push(
-            ...results.filter((r) => r.status === 'fulfilled' && r.value).map((r) => r.value)
-          );
-        }
-
-        return { role: role.name, users: usersWithGroups };
-      })
-    );
-
-    rolesOut.push(...settled.filter((s) => s.status === 'fulfilled' && s.value).map((s) => s.value));
-  }
-
-  return rolesOut;
-}
-
-/**
- * =========================
- * Actor expansion (safe awaits)
- * =========================
- */
-// Utility: Build a global lookup map from lastLoginResults
-async function buildLastLoginMap(lastLoginResults) {
-  const map = new Map();
-
-  for (const project of lastLoginResults || []) {
-    for (const user of project.users || []) {
-      const existing = map.get(user.accountId);
-
-      // Keep the most recent activity date across projects
-      if (!existing || new Date(user.lastActivityDate) > new Date(existing)) {
-        map.set(user.accountId, user.lastActivityDate);
-      }
+    if (!accountId) {
+      logger.error("accountId is missing in payload", { payload });
+      throw new Error('accountId is required');
     }
-  }
 
-  return map;
-}
-
-
-async function calculateRiskLevel(user, role) {
-  // console.log("USER*****",user)
-  // console.log("ROLE*****",role)
-  const now = new Date();
-  const lastLogin = user.lastLogin ? new Date(user.lastLogin) : null;
-  const inactiveDays = lastLogin ? (now - lastLogin) / (1000 * 60 * 60 * 24) : Infinity;
-
-  // Default = low
-  let risk = "low";
-
-  // High risk: dormant admins or global roles
-  if (role === "Administrators" || user.globalRoles.includes("site-admin")) {
-    if (inactiveDays > 90) {
-      risk = "high"; // dormant admin
-    } else {
-      risk = "medium"; // active admin
+    if (!Array.isArray(globalPermissions) || globalPermissions.length === 0) {
+      logger.error("globalPermissions is invalid", { globalPermissions });
+      throw new Error('globalPermissions must be a non-empty array');
     }
+
+    // logger.info("Checking global permissions for user", { accountId, displayName });
+
+    const res = await api.asApp().requestJira(route`/rest/api/3/permissions/check`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId, globalPermissions }),
+    });
+
+    if (!res.ok) {
+      logger.error("Global permission check failed", { accountId, status: res.status, statusText: res.statusText });
+      return {
+        user: { accountId },
+        error: `Request failed with status ${res.status}`,
+      };
+    }
+
+    const json = await res.json();
+    const permissions = json?.globalPermissions || [];
+
+    // logger.info("Global permissions check successful", { accountId, permissions });
+
+    return {
+      user: { accountId, displayName },
+      permissions,
+    };
+  } catch (err) {
+    logger.error("Error in checkUserPermissions", { error: err.message, stack: err.stack, accountId: payload?.accountId });
+    throw err;
   }
-
-  // Medium risk: developers with write permissions
-  if (role === "Developers" && inactiveDays > 180) {
-    risk = "medium";
-  }
-
-  // Low risk: viewers or active standard users
-  if (role === "Viewers" && inactiveDays < 90) {
-    risk = "low";
-  }
-
-  // Inactive account
-  if (!user.active) {
-    risk = "high";
-  }
-
-  return risk;
-}
-
-// Expand actor → user details
-async function expandActorToUser(actor, allUsers, lastLoginResults) {
-  const accountId = actor?.actorUser?.accountId;
-  if (!accountId) return null;
-
-  // ✅ Always prefer the displayName from allUsers
-  const matched = allUsers.find((u) => u.accountId === accountId);
-  const displayName = matched?.displayName || actor?.actorUser?.displayName || "NAME NOT FOUND";
-
-  // Build last login map once and reuse
-  const lastLoginMap = await buildLastLoginMap(lastLoginResults);
-  const lastActivity = lastLoginMap.get(accountId) || null;
-
-  const groupsResp = await getGroupsOnAccId(accountId);
-  const groups = Array.isArray(groupsResp)
-    ? groupsResp.map((g) => g.name).filter(Boolean)
-    : [];
-
-  // 🔹 Build the user object for risk calculation
-  const userForRisk = {
-    displayName:displayName,
-    lastLogin: lastActivity,
-    active: matched?.active ?? actor?.actorUser?.active ?? true,
-    globalRoles: matched?.globalRoles || [], // default empty if not available
-  };
-
-  // Pick a role to feed into risk calculation (example: first group or "Unknown")
-  const role = groups.length > 0 ? groups[0] : "Unknown";
-
-  // 🔹 Calculate risk level dynamically
-  const riskLevel = await calculateRiskLevel(userForRisk, role);
-
-  return {
-    accountId,
-    displayName,
-    lastLogin: lastActivity || "Null",
-    riskLevel,
-    groups,
-    active: userForRisk.active,
-  };
-}
+});
 
 
 /**
- * =========================
- * Low-level Jira API
- * =========================
+ * 🔹 Get project permission scheme
+ * payload = { projectKeyOrId: string }
  */
-async function getProjectPermissionScheme(projectKeyOrId) {
-  const res = await api.asApp().requestJira(
-    route`/rest/api/3/project/${projectKeyOrId}/permissionscheme`,
-    { headers: { Accept: 'application/json' } }
-  );
-  return res.ok ? res.json() : null;
-}
+resolver.define('getProjectPermissionScheme', async ({ payload }) => {
+  try {
+    const { projectKeyOrId } = payload || {};
+    if (!projectKeyOrId) {
+      logger.error("projectKeyOrId is missing in payload", { payload });
+      throw new Error('projectKeyOrId is required');
+    }
 
-async function getRoleIdScheme(projectKeyOrId) {
-  const res = await api.asApp().requestJira(
-    route`/rest/api/3/project/${projectKeyOrId}/roledetails`,
-    { headers: { Accept: 'application/json' } }
-  );
-  return res.ok ? res.json() : [];
-}
+    // logger.info("Fetching permission scheme for project", { projectKeyOrId });
 
-async function getRoleUsersScheme(projectKeyOrId, roleId) {
-  const res = await api.asApp().requestJira(
-    route`/rest/api/3/project/${projectKeyOrId}/role/${roleId}`,
-    { headers: { Accept: 'application/json' } }
-  );
-  return res.ok ? res.json() : null;
-}
+    const res = await api.asApp().requestJira(
+      route`/rest/api/3/project/${projectKeyOrId}/permissionscheme`,
+      { headers: { Accept: 'application/json' } }
+    );
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      logger.error("Failed to fetch permission scheme", { projectKeyOrId, status: res.status, errorText });
+      throw new Error(`Failed to fetch permission scheme: ${res.status} - ${errorText}`);
+    }
+
+    const data = await res.json();
+    // logger.info("Fetched permission scheme successfully", { projectKeyOrId });
+
+    return data;
+  } catch (err) {
+    logger.error("Error in getProjectPermissionScheme", { error: err.message, stack: err.stack, projectKeyOrId: payload?.projectKeyOrId });
+    throw err;
+  }
+});
+
 
 /**
- * =========================
- * Group cache
- * =========================
+ * 🔹 Get all role definitions in a project
+ * payload = { projectKeyOrId: string }
  */
-async function getGroupsOnAccId(accountId) {
-  if (groupCache.has(accountId)) return groupCache.get(accountId);
+resolver.define('getRoleIdScheme', async ({ payload }) => {
+  try {
+    const { projectKeyOrId } = payload || {};
+    if (!projectKeyOrId) {
+      logger.error("projectKeyOrId is missing in payload", { payload });
+      throw new Error('projectKeyOrId is required');
+    }
 
-  const res = await api.asApp().requestJira(
-    route`/rest/api/3/user/groups?accountId=${accountId}`,
-    { headers: { Accept: 'application/json' } }
-  );
+    // logger.info("Fetching role details for project", { projectKeyOrId });
 
-  if (!res.ok) {
-    console.error(`Group fetch failed for account ${accountId}: ${res.status}`);
-    groupCache.set(accountId, []);
-    return [];
+    const res = await api.asApp().requestJira(
+      route`/rest/api/3/project/${projectKeyOrId}/roledetails`,
+      { headers: { Accept: 'application/json' } }
+    );
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      logger.error("Failed to fetch role details", { projectKeyOrId, status: res.status, errorText });
+      throw new Error(`Failed to fetch role details: ${res.status} - ${errorText}`);
+    }
+
+    const data = await res.json();
+    // logger.info("Fetched role details successfully", { projectKeyOrId });
+
+    return data;
+  } catch (err) {
+    logger.error("Error in getRoleIdScheme", { error: err.message, stack: err.stack, projectKeyOrId: payload?.projectKeyOrId });
+    throw err;
   }
+});
 
-  const data = await res.json();
-  groupCache.set(accountId, data || []);
-  return data || [];
-}
+
+/**
+ * 🔹 Get all users in a specific project role
+ * payload = { projectKeyOrId: string, roleId: string }
+ */
+resolver.define('getRoleUsersScheme', async ({ payload }) => {
+  try {
+    const { projectKeyOrId, roleId } = payload || {};
+    if (!projectKeyOrId || !roleId) {
+      logger.error("projectKeyOrId or roleId missing in payload", { payload });
+      throw new Error('projectKeyOrId and roleId are required');
+    }
+
+    // logger.info("Fetching role users for project", { projectKeyOrId, roleId });
+
+    const res = await api.asApp().requestJira(
+      route`/rest/api/3/project/${projectKeyOrId}/role/${roleId}`,
+      { headers: { Accept: 'application/json' } }
+    );
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      logger.error("Failed to fetch role users", { projectKeyOrId, roleId, status: res.status, errorText });
+      throw new Error(`Failed to fetch role users: ${res.status} - ${errorText}`);
+    }
+
+    const data = await res.json();
+    // logger.info("Fetched role users successfully", { projectKeyOrId, roleId });
+
+    return data;
+  } catch (err) {
+    logger.error("Error in getRoleUsersScheme", { error: err.message, stack: err.stack, projectKeyOrId: payload?.projectKeyOrId, roleId: payload?.roleId });
+    throw err;
+  }
+});
+
+
+/**
+ * 🔹 Get groups for a given accountId
+ * payload = { accountId: string }
+ */
+resolver.define('getGroupsOnAccId', async ({ payload }) => {
+  try {
+    const { accountId } = payload || {};
+    if (!accountId) {
+      logger.error("accountId is missing in payload", { payload });
+      throw new Error('accountId is required');
+    }
+
+    // ✅ Use cache if available
+    if (groupCache.has(accountId)) {
+      logger.debug("Returning cached groups for account", { accountId });
+      return groupCache.get(accountId);
+    }
+
+    // logger.info("Fetching groups for account", { accountId });
+
+    const res = await api.asApp().requestJira(
+      route`/rest/api/3/user/groups?accountId=${accountId}`,
+      { headers: { Accept: 'application/json' } }
+    );
+
+    if (!res.ok) {
+      logger.error("Group fetch failed", { accountId, status: res.status });
+      groupCache.set(accountId, []);
+      return [];
+    }
+
+    const data = await res.json();
+    groupCache.set(accountId, data || []);
+    // logger.info("Fetched groups successfully", { accountId, groupCount: (data || []).length });
+
+    return data || [];
+  } catch (err) {
+    logger.error("Error in getGroupsOnAccId", { error: err.message, stack: err.stack, accountId: payload?.accountId });
+    throw err;
+  }
+});
+
 
 
 export const handler = resolver.getDefinitions();

@@ -3,6 +3,9 @@ import { invoke, view } from "@forge/bridge";
 import ChatInterface from './components/ChatInterface';
 import FullscreenLoader from "./components/FullscreenLoader";
 import { calculateLastLoginForProject } from "./utils/CalculateLastLoginForProject";
+import { checkPermissions } from "./utils/CheckPermission";
+import { getPayload } from "./utils/GetPayLoad";
+import { buildProjectPermissionData } from "./utils/buildProjectPermissionData";
 
 export default function App() {
   const [initData, setInitData] = useState(null);   // data from initAudit
@@ -26,7 +29,16 @@ export default function App() {
         setCloudId(cid);
 
         // Step 1: call initAudit
-        const initRes = await invoke("initAudit", { cloudId: cid });
+        // const initRes = await invoke("initAudit", { cloudId: cid });
+       const allUsers= await invoke ("getAllJiraUsers")
+       const allProjects = await invoke ("getAllJiraProjects")
+       const groupedPermissionKeys = await invoke("getAllPermissions")
+       const initRes = {
+      success: true,
+      allUsers,
+      allProjects,
+      groupedPermissionKeys,
+    };
         console.log("InitRes***",initRes)
         if (initRes.success) {
           setInitData(initRes);
@@ -46,6 +58,8 @@ export default function App() {
 useEffect(() => {
   (async () => {
     try {
+      const context = await view.getContext();
+        const cloudId = context.cloudId;
       const res = await invoke('getLastScannedAt', { orgId: cloudId });
       console.log("getlastScanned :",res)
       if (res?.lastScannedAt != null) {
@@ -67,29 +81,21 @@ const start = async () => {
 
     for (const project of initData.allProjects) {
       setRunStatus(`🚀 Processing project: ${project.key}`);
-
-      // 1️⃣ First fetch last login for this project
-      // const lastLoginResp = await invoke("calculateLastLoginForProject", {
-      //   project,
-      //   allUsers: initData.allUsers,
-      // });
       const lastLoginResp = await calculateLastLoginForProject({project , allUsers:initData.allUsers})
-      console.log(`LastLoginResp [${project.key}]***`, lastLoginResp);
+      // console.log(`LastLoginResp [${project.key}]***`, lastLoginResp);
 
-      // 2️⃣ Pass it directly into processAudit for this project
-      const result = await invoke("processAudit", {
-        cloudId,
-        allUsers: initData.allUsers,
-        allProjects: [project], // single project
-        groupedPermissionKeys: initData.groupedPermissionKeys,
-        lastLoginResults: [lastLoginResp], // pass only this project’s last login
-      });
+      const globalPermissions = await checkPermissions(initData.allUsers,initData.groupedPermissionKeys.global)
+      // console.log("globalpermission******",globalPermissions)
+      const buildProjectPermissionDatas = await buildProjectPermissionData(project, initData.allUsers, globalPermissions ,[lastLoginResp] )
+      // console.log("buildProj*****",buildProjectPermissionDatas)
 
-      console.log(`✅ Completed audit for project ${project.key}`, result);
+      const payload = await getPayload(buildProjectPermissionDatas , cloudId);
 
-      results.push(result);
-      processed++;
-      setAuditResult((prev) => [...(prev || []), result]); // incremental UI update
+      
+      console.log(`✅ Completed audit for project ${project.key}`, payload);
+
+      await invoke("sendToSqs",{payload})
+     processed++;
     }
 
     const now = Date.now();
