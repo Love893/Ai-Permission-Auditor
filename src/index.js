@@ -163,26 +163,25 @@ resolver.define('sendToSqs', async ({ payload }) => {
     logger.info("Payload size before sending to SQS", { sizeKB: payloadSizeKB, length: payloadString.length });
     logger.debug("Payload JSON", { payload: payloadData });
 
-    // const res = await fetch('https://forgeapps.clovity.com/v0/api/sqs/send', {
-    //   method: 'POST',
-    //   headers: {
-    //     'x-api-key': process.env.APP_RUNNER_API_KEY,
-    //     'Content-Type': 'application/json',
-    //   },
-    //   body: payloadString,
-    // });
+    const res = await fetch('https://forgeapps.clovity.com/v0/api/sqs/send', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.APP_RUNNER_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: payloadString,
+    });
 
-    // if (!res.ok) {
-    //   const errorText = await res.text();
-    //   logger.error("Failed to send payload to SQS", { status: res.status, errorText, payloadLength: payloadData.length });
-    //   return { success: false, error: errorText };
-    // }
+    if (!res.ok) {
+      const errorText = await res.text();
+      logger.error("Failed to send payload to SQS", { status: res.status, errorText, payloadLength: payloadData.length });
+      return { success: false, error: errorText };
+    }
 
-    // const data = await res.json();
-    // logger.info("Payload sent successfully to SQS", { response: data, payloadLength: payloadData.length });
+    const data = await res.json();
+    logger.info("Payload sent successfully to SQS", { response: data, payloadLength: payloadData.length });
 
-    // return { success: true, data };
-    return { success: true};
+    return { success: true, data };
   } catch (err) {
     logger.error("Error sending payload to SQS", { error: err.message, stack: err.stack });
     return { success: false, error: err.message || String(err) };
