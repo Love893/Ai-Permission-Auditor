@@ -25,6 +25,7 @@ export default function App() {
     async function fetchInitData() {
       try {
         const context = await view.getContext();
+        // console.log("Context",context)
         const cid = context.cloudId;
         setCloudId(cid);
 
@@ -39,7 +40,7 @@ export default function App() {
       allProjects,
       groupedPermissionKeys,
     };
-        console.log("InitRes***",initRes)
+        console.log("Init Response",initRes)
         if (initRes.success) {
           setInitData(initRes);
         } else {
@@ -61,7 +62,7 @@ useEffect(() => {
       const context = await view.getContext();
         const cloudId = context.cloudId;
       const res = await invoke('getLastScannedAt', { orgId: cloudId });
-      console.log("getlastScanned :",res)
+      // console.log("getlastScanned :",res)
       if (res?.lastScannedAt != null) {
         setLastScannedAt(Number(res.lastScannedAt));
       }
@@ -119,7 +120,7 @@ const start = async () => {
   }
 };
 
-console.log("last:",lastScannedAt)
+// console.log("last:",lastScannedAt)
 
 
    if (!initData) {

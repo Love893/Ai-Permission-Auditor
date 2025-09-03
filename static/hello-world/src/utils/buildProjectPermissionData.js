@@ -58,6 +58,7 @@ async function buildRolesForProject(projectId, roleDetails, allUsers, lastLoginR
 
         //console.log(`👤 Members fetched for role ${role.name}:`, members);
         const actors = members?.actors || [];
+        // console.log("All Actors",actors)
 
         const usersWithGroups = [];
         for (let j = 0; j < actors.length; j += CONFIG.MEMBERS_CONCURRENCY) {
@@ -139,21 +140,21 @@ const matched = allUsers.find(({ accountId: userAccId }) => {
     active: matched?.active ?? actor?.actorUser?.active ?? true,
     globalRoles: matched?.globalRoles || [], // default empty if not available
   };
-  //console.log("🛠️ User object built for risk calculation:", userForRisk);
+  // console.log("🛠️ User object built for risk calculation:", userForRisk);
 
   // Pick a role to feed into risk calculation (example: first group or "Unknown")
   const role = groups.length > 0 ? groups[0] : "Unknown";
-  //console.log("🎭 Role chosen for risk calculation:", role);
+  // console.log("🎭 Role chosen for risk calculation:", role);
 
   // 🔹 Calculate risk level dynamically
   const riskLevel = await calculateRiskLevel(userForRisk, role);
-  //console.log("⚡ Risk level calculated:", riskLevel);
+  // console.log("⚡ Risk level calculated:", riskLevel);
 
   // Final object
   const result = {
     accountId,
     displayName,
-    lastLogin: lastActivity || "Null",
+    lastLogin: lastActivity,
     riskLevel,
     groups,
     active: userForRisk.active,
@@ -209,7 +210,7 @@ async function calculateRiskLevel(user, role) {
   let risk = "low";
 
   // High risk: dormant admins or global roles
-  if (role === "Administrators" || user.globalRoles.includes("site-admin")) {
+  if (role === "Administrator") {
     if (inactiveDays > 90) {
       risk = "high"; // dormant admin
     } else {
@@ -217,13 +218,13 @@ async function calculateRiskLevel(user, role) {
     }
   }
 
-  // Medium risk: developers with write permissions
-  if (role === "Developers" && inactiveDays > 180) {
+  // Medium risk: Member with write permissions
+  if (role === "Member" && inactiveDays > 180) {
     risk = "medium";
   }
 
   // Low risk: viewers or active standard users
-  if (role === "Viewers" && inactiveDays < 90) {
+  if (role === "Viewer" && inactiveDays < 90) {
     risk = "low";
   }
 
