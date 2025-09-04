@@ -87,24 +87,36 @@ const start = async () => {
 
   try {
     let processed = 0;
+    const keys = initData.allProjects.map(p => p.key); // get all project keys
+    const total = keys.length;
 
     for (const project of initData.allProjects) {
-      setRunStatus(`🚀 Processing project: ${project.key}`);
-      const lastLoginResp = await calculateLastLoginForProject({project , allUsers:initData.allUsers})
-      // console.log(`LastLoginResp [${project.key}]***`, lastLoginResp);
+      const projectKey = project.key;
+      setRunStatus(`Processing ${projectKey} (${processed + 1}/${total})…`);
 
-      const globalPermissions = await checkPermissions(initData.allUsers,initData.groupedPermissionKeys.global)
-      // console.log("globalpermission******",globalPermissions)
-      const buildProjectPermissionDatas = await buildProjectPermissionData(project, initData.allUsers, globalPermissions ,[lastLoginResp] )
-      // console.log("buildProj*****",buildProjectPermissionDatas)
+      const lastLoginResp = await calculateLastLoginForProject({
+        project,
+        allUsers: initData.allUsers
+      });
 
-      const payload = await getPayload(buildProjectPermissionDatas , cloudId);
+      const globalPermissions = await checkPermissions(
+        initData.allUsers,
+        initData.groupedPermissionKeys.global
+      );
 
-      
-      console.log(`✅ Completed audit for project ${project.key}`, payload);
+      const buildProjectPermissionDatas = await buildProjectPermissionData(
+        project,
+        initData.allUsers,
+        globalPermissions,
+        [lastLoginResp]
+      );
 
-      await invoke("sendToSqs",{payload})
-     processed++;
+      const payload = await getPayload(buildProjectPermissionDatas, cloudId);
+
+      console.log(`✅ Completed audit for project ${projectKey}`, payload);
+
+      await invoke("sendToSqs", { payload });
+      processed++;
     }
 
     const now = Date.now();
@@ -122,8 +134,7 @@ const start = async () => {
     return true;
   } catch (e) {
     console.log(`❌ Failed: ${e?.message || String(e)}`);
-    setRunStatus('Please retry');
-    setRunStatus(content?.defaultRetry?.retryMessage);
+    setRunStatus(content?.defaultRetry?.retryMessage || 'Please retry');
     setRunLoading(false);
     return false;
   }
