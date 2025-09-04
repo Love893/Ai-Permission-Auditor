@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { invoke, view } from "@forge/bridge";
 import ChatInterface from './components/ChatInterface';
-import FullscreenLoader from "./components/FullscreenLoader";
 import { calculateLastLoginForProject } from "./utils/CalculateLastLoginForProject";
+import { checkPermissions } from "./utils/CheckPermission";
+import { getPayload } from "./utils/GetPayLoad";
+import { buildProjectPermissionData } from "./utils/buildProjectPermissionData";
+import { getPermissionAuditorContent } from './content/permission-auditor.content';
 
 export default function App() {
   const [initData, setInitData] = useState(null);   // data from initAudit
@@ -13,6 +16,8 @@ export default function App() {
   const [runLoading, setRunLoading] = useState(false);
   const [runStatus, setRunStatus] = useState('');
   const [showChat, setShowChat] = useState(false);
+  const [locale, setLocale] = useState(''); 
+  const [content, setContent] = useState(getPermissionAuditorContent(''));
   const [lastScannedAt, setLastScannedAt] = useState(null);
 
   const cooldownActive = false;
@@ -22,12 +27,22 @@ export default function App() {
     async function fetchInitData() {
       try {
         const context = await view.getContext();
+        // console.log("Context",context)
         const cid = context.cloudId;
         setCloudId(cid);
 
         // Step 1: call initAudit
-        const initRes = await invoke("initAudit", { cloudId: cid });
-        console.log("InitRes***",initRes)
+        // const initRes = await invoke("initAudit", { cloudId: cid });
+       const allUsers= await invoke ("getAllJiraUsers")
+       const allProjects = await invoke ("getAllJiraProjects")
+       const groupedPermissionKeys = await invoke("getAllPermissions")
+       const initRes = {
+      success: true,
+      allUsers,
+      allProjects,
+      groupedPermissionKeys,
+    };
+        console.log("Init Response",initRes)
         if (initRes.success) {
           setInitData(initRes);
         } else {
@@ -46,8 +61,16 @@ export default function App() {
 useEffect(() => {
   (async () => {
     try {
+      const context = await view.getContext();
+        const cloudId = context.cloudId;
       const res = await invoke('getLastScannedAt', { orgId: cloudId });
-      console.log("getlastScanned :",res)
+        // console.log("getlastScanned :",res)
+      const loc = context?.locale || 'en_US';
+        console.log('Resolved locale from context:', loc);
+        setLocale(loc);
+        const resolvedContent = getPermissionAuditorContent(loc);
+        console.log('Resolved content pack for locale:', loc, '->', resolvedContent?.heroTitle || 'Unknown');
+        setContent(resolvedContent);
       if (res?.lastScannedAt != null) {
         setLastScannedAt(Number(res.lastScannedAt));
       }
@@ -67,29 +90,21 @@ const start = async () => {
 
     for (const project of initData.allProjects) {
       setRunStatus(`🚀 Processing project: ${project.key}`);
-
-      // 1️⃣ First fetch last login for this project
-      // const lastLoginResp = await invoke("calculateLastLoginForProject", {
-      //   project,
-      //   allUsers: initData.allUsers,
-      // });
       const lastLoginResp = await calculateLastLoginForProject({project , allUsers:initData.allUsers})
-      console.log(`LastLoginResp [${project.key}]***`, lastLoginResp);
+      // console.log(`LastLoginResp [${project.key}]***`, lastLoginResp);
 
-      // 2️⃣ Pass it directly into processAudit for this project
-      const result = await invoke("processAudit", {
-        cloudId,
-        allUsers: initData.allUsers,
-        allProjects: [project], // single project
-        groupedPermissionKeys: initData.groupedPermissionKeys,
-        lastLoginResults: [lastLoginResp], // pass only this project’s last login
-      });
+      const globalPermissions = await checkPermissions(initData.allUsers,initData.groupedPermissionKeys.global)
+      // console.log("globalpermission******",globalPermissions)
+      const buildProjectPermissionDatas = await buildProjectPermissionData(project, initData.allUsers, globalPermissions ,[lastLoginResp] )
+      // console.log("buildProj*****",buildProjectPermissionDatas)
 
-      console.log(`✅ Completed audit for project ${project.key}`, result);
+      const payload = await getPayload(buildProjectPermissionDatas , cloudId);
 
-      results.push(result);
-      processed++;
-      setAuditResult((prev) => [...(prev || []), result]); // incremental UI update
+      
+      console.log(`✅ Completed audit for project ${project.key}`, payload);
+
+      await invoke("sendToSqs",{payload})
+     processed++;
     }
 
     const now = Date.now();
@@ -106,18 +121,29 @@ const start = async () => {
     setShowChat(true);
     return true;
   } catch (e) {
-    console.error(e);
-    setRunStatus(`❌ Failed: ${e?.message || String(e)}`);
+    console.log(`❌ Failed: ${e?.message || String(e)}`);
+    setRunStatus('Please retry');
+    setRunStatus(content?.defaultRetry?.retryMessage);
     setRunLoading(false);
     return false;
   }
 };
 
-console.log("last:",lastScannedAt)
+// console.log("last:",lastScannedAt)
 
 
-   if (!initData) {
-    return <FullscreenLoader />;
+if (!locale || !content || !initData ) {
+    // Optional: minimal placeholder while we read context/locale
+    return (
+      <div 
+      role="status"
+      aria-live="polite"
+      className="min-h-screen flex items-center justify-center text-base"
+      >
+         Loading |  Laden |  Chargement | Cargando
+      </div>
+    );
+    // Or simply: return null;
   }
 
   return (
@@ -131,6 +157,8 @@ console.log("last:",lastScannedAt)
       cooldownActive={cooldownActive}
       runStatus={runStatus}
       runLoading={runLoading}
+      content={content}
+      locale={locale}
     />
   </>
   );
