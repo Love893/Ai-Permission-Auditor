@@ -74,7 +74,7 @@ resolver.define('getLastScannedAt', async ({ payload }) => {
 
 resolver.define('queryPermissionAuditor', async ({ payload }) => {
   try {
-    const { query, event = 'permissionaudit', orgId } = payload || {};
+    const { query, event = 'permissionaudit', orgId , locale } = payload || {};
 
     logger.debug("queryPermissionAuditor called", { query, event, orgId });
 
@@ -84,7 +84,7 @@ resolver.define('queryPermissionAuditor', async ({ payload }) => {
         'x-api-key': process.env.APP_RUNNER_API_KEY,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ query, event, orgId })
+      body: JSON.stringify({ query, event, orgId , locale })
     });
 
     logger.info("Upstream response received", { status: resp.status, ok: resp.ok });
@@ -182,6 +182,7 @@ resolver.define('sendToSqs', async ({ payload }) => {
     logger.info("Payload sent successfully to SQS", { response: data, payloadLength: payloadData.length });
 
     return { success: true, data };
+   
   } catch (err) {
     logger.error("Error sending payload to SQS", { error: err.message, stack: err.stack });
     return { success: false, error: err.message || String(err) };
@@ -199,41 +200,60 @@ resolver.define('getAllIssuesForProject', async ({ payload }) => {
       throw new Error("projectKey is required");
     }
 
-    // logger.info("Fetching all issues for project", { projectKey });
-
-    let startAt = 0;
-    const maxResults = 100;
     const issues = [];
+    let nextPageToken = null;
+    let isLast = false;
 
-    while (true) {
-      const response = await api.asApp().requestJira(
-        route`/rest/api/3/search?jql=project=${projectKey}&startAt=${startAt}&maxResults=${maxResults}`
-      );
+    // Keep ORDER BY stable for consistent pagination
+    const jql = `project = ${projectKey} ORDER BY created ASC`;
+
+    while (!isLast) {
+     const body = {
+  jql,
+  maxResults: 100,
+  nextPageToken: nextPageToken || undefined,
+  fields: ["*all"]
+};
+
+
+      const response = await api.asApp().requestJira(route`/rest/api/3/search/jql`, {
+        method: "POST",
+        headers: { "Accept": "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
-        logger.error("Failed to fetch issues for project", { projectKey, status: response.status, error: errorText });
+        logger.error("Failed to fetch issues for project", {
+          projectKey,
+          status: response.status,
+          error: errorText,
+        });
         throw new Error(errorText);
       }
 
       const data = await response.json();
-      issues.push(...data.issues);
-      // logger.debug("Fetched batch of issues", { projectKey, startAt, batchCount: data.issues.length, totalIssues: data.total });
+      issues.push(...(data.issues || []));
 
-      if (startAt + maxResults >= data.total) {
-        break;
-      }
-      startAt += maxResults;
+      nextPageToken = data.nextPageToken || null;
+      isLast = data.isLast === true;
     }
 
-    // logger.info("Completed fetching all issues for project", { projectKey, totalFetched: issues.length });
+    logger.info("Completed fetching all issues for project", {
+      projectKey,
+      totalFetched: issues.length,
+    });
 
     return issues;
   } catch (err) {
-    logger.error("Error in getAllIssuesForProject", { error: err.message, stack: err.stack });
+    logger.error("Error in getAllIssuesForProject", {
+      error: err.message,
+      stack: err.stack,
+    });
     throw err;
   }
 });
+
 
 
 

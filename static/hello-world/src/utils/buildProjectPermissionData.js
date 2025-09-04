@@ -54,7 +54,7 @@ async function buildRolesForProject(projectId, roleDetails, allUsers, lastLoginR
     const settled = await Promise.allSettled(
       slice.map(async (role) => {
         //console.log(`➡️ Fetching members for role ${role.name} (${role.id}) in project ${projectId}`);
-        const members = await invoke("getRoleUsersScheme", { projectKeyOrId:projectId, roleId: role.id });
+        const members = await invoke("getRoleUsersScheme", { projectKeyOrId:projectId, roleId: role.id  });
 
         //console.log(`👤 Members fetched for role ${role.name}:`, members);
         const actors = members?.actors || [];
@@ -66,7 +66,7 @@ async function buildRolesForProject(projectId, roleDetails, allUsers, lastLoginR
           //console.log(`   🔍 Expanding actor slice [${j}..${j + memberSlice.length - 1}] for role ${role.name}:`, memberSlice);
 
           const results = await Promise.allSettled(
-            memberSlice.map((actor) => expandActorToUser(actor, allUsers, lastLoginResults))
+            memberSlice.map((actor) => expandActorToUser(actor, allUsers, lastLoginResults , role.name))
           );
 
           const fulfilledUsers = results
@@ -95,7 +95,7 @@ async function buildRolesForProject(projectId, roleDetails, allUsers, lastLoginR
 }
 
 
-async function expandActorToUser(actor, allUsers, lastLoginResults) {
+async function expandActorToUser(actor, allUsers, lastLoginResults , roleName) {
   // console.log("🔍 expandActorToUser called with actor:", actor);
 
   const accountId = actor?.actorUser?.accountId;
@@ -143,11 +143,11 @@ const matched = allUsers.find(({ accountId: userAccId }) => {
   // console.log("🛠️ User object built for risk calculation:", userForRisk);
 
   // Pick a role to feed into risk calculation (example: first group or "Unknown")
-  const role = groups.length > 0 ? groups[0] : "Unknown";
+  // const role = groups.length > 0 ? groups[0] : "Unknown";
   // console.log("🎭 Role chosen for risk calculation:", role);
 
   // 🔹 Calculate risk level dynamically
-  const riskLevel = await calculateRiskLevel(userForRisk, role);
+  const riskLevel = await calculateRiskLevel(userForRisk, roleName);
   // console.log("⚡ Risk level calculated:", riskLevel);
 
   // Final object

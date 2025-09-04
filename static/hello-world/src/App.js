@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { invoke, view } from "@forge/bridge";
 import ChatInterface from './components/ChatInterface';
-import FullscreenLoader from "./components/FullscreenLoader";
 import { calculateLastLoginForProject } from "./utils/CalculateLastLoginForProject";
 import { checkPermissions } from "./utils/CheckPermission";
 import { getPayload } from "./utils/GetPayLoad";
 import { buildProjectPermissionData } from "./utils/buildProjectPermissionData";
+import { getPermissionAuditorContent } from './content/permission-auditor.content';
 
 export default function App() {
   const [initData, setInitData] = useState(null);   // data from initAudit
@@ -16,6 +16,8 @@ export default function App() {
   const [runLoading, setRunLoading] = useState(false);
   const [runStatus, setRunStatus] = useState('');
   const [showChat, setShowChat] = useState(false);
+  const [locale, setLocale] = useState(''); 
+  const [content, setContent] = useState(getPermissionAuditorContent(''));
   const [lastScannedAt, setLastScannedAt] = useState(null);
 
   const cooldownActive = false;
@@ -62,7 +64,13 @@ useEffect(() => {
       const context = await view.getContext();
         const cloudId = context.cloudId;
       const res = await invoke('getLastScannedAt', { orgId: cloudId });
-      // console.log("getlastScanned :",res)
+        // console.log("getlastScanned :",res)
+      const loc = context?.locale || 'en_US';
+        console.log('Resolved locale from context:', loc);
+        setLocale(loc);
+        const resolvedContent = getPermissionAuditorContent(loc);
+        console.log('Resolved content pack for locale:', loc, '->', resolvedContent?.heroTitle || 'Unknown');
+        setContent(resolvedContent);
       if (res?.lastScannedAt != null) {
         setLastScannedAt(Number(res.lastScannedAt));
       }
@@ -113,8 +121,9 @@ const start = async () => {
     setShowChat(true);
     return true;
   } catch (e) {
-    console.error(e);
-    setRunStatus(`❌ Failed: ${e?.message || String(e)}`);
+    console.log(`❌ Failed: ${e?.message || String(e)}`);
+    setRunStatus('Please retry');
+    setRunStatus(content?.defaultRetry?.retryMessage);
     setRunLoading(false);
     return false;
   }
@@ -123,8 +132,18 @@ const start = async () => {
 // console.log("last:",lastScannedAt)
 
 
-   if (!initData) {
-    return <FullscreenLoader />;
+if (!locale || !content || !initData ) {
+    // Optional: minimal placeholder while we read context/locale
+    return (
+      <div 
+      role="status"
+      aria-live="polite"
+      className="min-h-screen flex items-center justify-center text-base"
+      >
+         Loading |  Laden |  Chargement | Cargando
+      </div>
+    );
+    // Or simply: return null;
   }
 
   return (
@@ -138,6 +157,8 @@ const start = async () => {
       cooldownActive={cooldownActive}
       runStatus={runStatus}
       runLoading={runLoading}
+      content={content}
+      locale={locale}
     />
   </>
   );
