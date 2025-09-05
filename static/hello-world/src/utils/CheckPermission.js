@@ -18,7 +18,7 @@ export async function checkPermissions(allUsers, globalPermissions) {
       });
 
     //   console.log(`✅ Result for ${user.displayName || user.accountId}:`, result);
-      results.push({ result });
+      results.push(result);
     } catch (err) {
       console.error(`❌ Error checking permissions for ${user.displayName || user.accountId}:`, err);
       results.push({ user: user.displayName || user.accountId, error: err.message });

@@ -19,6 +19,7 @@ export default function App() {
   const [locale, setLocale] = useState(''); 
   const [content, setContent] = useState(getPermissionAuditorContent(''));
   const [lastScannedAt, setLastScannedAt] = useState(null);
+  const [userGlobalPermissions,setUserGlobalPermissions] = useState('')
 
   const cooldownActive = false;
 
@@ -36,6 +37,12 @@ export default function App() {
        const allUsers= await invoke ("getAllJiraUsers")
        const allProjects = await invoke ("getAllJiraProjects")
        const groupedPermissionKeys = await invoke("getAllPermissions")
+        const globalPermissions = await checkPermissions(
+        allUsers,
+        groupedPermissionKeys.global
+      );
+
+      setUserGlobalPermissions(globalPermissions)
        const initRes = {
       success: true,
       allUsers,
@@ -99,15 +106,15 @@ const start = async () => {
         allUsers: initData.allUsers
       });
 
-      const globalPermissions = await checkPermissions(
-        initData.allUsers,
-        initData.groupedPermissionKeys.global
-      );
+      //  const globalPermissions = await checkPermissions(
+      //   initData.allUsers,
+      //   initData.groupedPermissionKeys.global
+      // );
 
       const buildProjectPermissionDatas = await buildProjectPermissionData(
         project,
         initData.allUsers,
-        globalPermissions,
+        userGlobalPermissions,
         [lastLoginResp]
       );
 
@@ -115,7 +122,7 @@ const start = async () => {
 
       // console.log(`✅ Completed audit for project ${projectKey}`, payload);
 
-      await invoke("sendToSqs", { payload });
+      await invoke("sendToUploadService", { payload });
       processed++;
     }
 

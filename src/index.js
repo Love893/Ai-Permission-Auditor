@@ -154,7 +154,7 @@ resolver.define('calculateLastLoginForProject', async ({ payload }) => {
 
 
 
-resolver.define('sendToSqs', async ({ payload }) => {
+resolver.define('sendToUploadService', async ({ payload }) => {
   try {
     const payloadData = payload.payload;
     const payloadString = JSON.stringify(payloadData);
@@ -163,7 +163,7 @@ resolver.define('sendToSqs', async ({ payload }) => {
     // console.log("i am data ",payloadString)
 
     logger.info("Payload size before sending to SQS", { sizeKB: payloadSizeKB, length: payloadString.length });
-    logger.info("Payload JSON", { payload: payloadData });
+    logger.debug("Payload JSON", { payload: payloadData });
 
     const res = await fetch('https://forgeapps.clovity.com/v0/api/sqs/send', {
       method: 'POST',

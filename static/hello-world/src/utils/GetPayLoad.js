@@ -1,10 +1,10 @@
 export async function getPayload(buildProjectPermissionData,cloudId){
-    const sqsPayload = {
+    const sendToUploadServicePayload = {
         event: "permissionaudit",
         orgId: cloudId,
         data:  [buildProjectPermissionData],
         timestamp: new Date().toISOString(),
     };
 
-    return sqsPayload;
+    return sendToUploadServicePayload;
 }
