@@ -24,6 +24,7 @@ export async function buildProjectPermissionData(project, allUsers, globalPermis
 
   const result = {
     projectId: project.id,
+    projectKey:project.key,
     projectName: project.displayName,
     permissionScheme: {
       schemeId: permissionScheme?.id || null,

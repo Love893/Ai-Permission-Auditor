@@ -160,8 +160,10 @@ resolver.define('sendToSqs', async ({ payload }) => {
     const payloadString = JSON.stringify(payloadData);
     const payloadSizeKB = (payloadString.length / 1024).toFixed(2);
 
+    // console.log("i am data ",payloadString)
+
     logger.info("Payload size before sending to SQS", { sizeKB: payloadSizeKB, length: payloadString.length });
-    logger.debug("Payload JSON", { payload: payloadData });
+    logger.info("Payload JSON", { payload: payloadData });
 
     const res = await fetch('https://forgeapps.clovity.com/v0/api/sqs/send', {
       method: 'POST',
@@ -174,17 +176,17 @@ resolver.define('sendToSqs', async ({ payload }) => {
 
     if (!res.ok) {
       const errorText = await res.text();
-      logger.error("Failed to send payload to SQS", { status: res.status, errorText, payloadLength: payloadData.length });
+      logger.error("Failed to send payload to backend service************", { status: res.status, errorText, payloadLength: payloadData.length });
       return { success: false, error: errorText };
     }
 
     const data = await res.json();
-    logger.info("Payload sent successfully to SQS", { response: data, payloadLength: payloadData.length });
+    logger.info("Payload sent successfully to backend service", { response: data, payloadLength: payloadData.length });
 
     return { success: true, data };
    
   } catch (err) {
-    logger.error("Error sending payload to SQS", { error: err.message, stack: err.stack });
+    logger.error("Error sending payload to backend service******************", { error: err.message, stack: err.stack });
     return { success: false, error: err.message || String(err) };
   }
 });
