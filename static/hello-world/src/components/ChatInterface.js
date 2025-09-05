@@ -82,8 +82,8 @@ export default function ChatInterface({
 
   // Log locale and content changes for debugging
   useEffect(() => {
-    console.log('ChatInterface: Locale changed to:', locale);
-    console.log('ChatInterface: Content pack loaded:', content?.heroTitle || 'Unknown');
+    // console.log('ChatInterface: Locale changed to:', locale);
+    // console.log('ChatInterface: Content pack loaded:', content?.heroTitle || 'Unknown');
   }, [locale, content]);
 
   const fmtTs = (ts) => {

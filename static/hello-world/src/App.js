@@ -42,7 +42,7 @@ export default function App() {
       allProjects,
       groupedPermissionKeys,
     };
-        console.log("Init Response",initRes)
+        // console.log("Init Response",initRes)
         if (initRes.success) {
           setInitData(initRes);
         } else {
@@ -66,10 +66,10 @@ useEffect(() => {
       const res = await invoke('getLastScannedAt', { orgId: cloudId });
         // console.log("getlastScanned :",res)
       const loc = context?.locale || 'en_US';
-        console.log('Resolved locale from context:', loc);
+        // console.log('Resolved locale from context:', loc);
         setLocale(loc);
         const resolvedContent = getPermissionAuditorContent(loc);
-        console.log('Resolved content pack for locale:', loc, '->', resolvedContent?.heroTitle || 'Unknown');
+        // console.log('Resolved content pack for locale:', loc, '->', resolvedContent?.heroTitle || 'Unknown');
         setContent(resolvedContent);
       if (res?.lastScannedAt != null) {
         setLastScannedAt(Number(res.lastScannedAt));
@@ -113,7 +113,7 @@ const start = async () => {
 
       const payload = await getPayload(buildProjectPermissionDatas, cloudId);
 
-      console.log(`✅ Completed audit for project ${projectKey}`, payload);
+      // console.log(`✅ Completed audit for project ${projectKey}`, payload);
 
       await invoke("sendToSqs", { payload });
       processed++;

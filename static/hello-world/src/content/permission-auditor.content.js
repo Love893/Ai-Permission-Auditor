@@ -427,13 +427,13 @@ export function getPermissionAuditorContent(locale) {
     const raw = String(locale || "en").toLowerCase().replace(/[-_]/g, "_");
     const lang = raw.split("_")[0]; // "en_US" -> "en"
 
-    console.log('Resolving content for locale:', locale, '-> language:', lang);
+    // console.log('Resolving content for locale:', locale, '-> language:', lang);
 
     if (lang === "fr") return fr;
     if (lang === "es") return es;
     if (lang === "de") return de;
 
-    console.log('Using default English content pack');
+    // console.log('Using default English content pack');
     return en;
   } catch (error) {
     console.warn('Error resolving content for locale:', locale, error);
