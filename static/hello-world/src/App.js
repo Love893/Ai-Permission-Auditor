@@ -115,7 +115,7 @@ const start = async () => {
 
       // console.log(`✅ Completed audit for project ${projectKey}`, payload);
 
-      await invoke("sendToSqs", { payload });
+      await invoke("sendToUploadService", { payload });
       processed++;
     }
 

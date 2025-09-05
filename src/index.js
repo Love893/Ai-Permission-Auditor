@@ -154,7 +154,7 @@ resolver.define('calculateLastLoginForProject', async ({ payload }) => {
 
 
 
-resolver.define('sendToSqs', async ({ payload }) => {
+resolver.define('sendToUploadService', async ({ payload }) => {
   try {
     const payloadData = payload.payload;
     const payloadString = JSON.stringify(payloadData);
