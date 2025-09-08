@@ -53,7 +53,7 @@ export default function ChatInterface({
   runStatus,
   runLoading,
   content,
-  locale
+  locale,
 }) {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
@@ -150,9 +150,13 @@ export default function ChatInterface({
     setLoadingTimeout(timeout);
 
     try {
+      const ctx = await forgeView.getContext();
+      const currentLocale = ctx?.locale || locale || 'en_US';
+      const userId = ctx?.accountId
       const response = await invoke('queryPermissionAuditor', {
         query: userMessage.content,
-        locale: locale,
+        locale: currentLocale,
+        userId: userId,
         event: 'permissionaudit',
         orgId: cloudId
       });

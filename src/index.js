@@ -74,9 +74,9 @@ resolver.define('getLastScannedAt', async ({ payload }) => {
 
 resolver.define('queryPermissionAuditor', async ({ payload }) => {
   try {
-    const { query, event = 'permissionaudit', orgId , locale } = payload || {};
+    const { query, event = 'permissionaudit', orgId , locale, userId } = payload || {};
 
-    logger.debug("queryPermissionAuditor called", { query, event, orgId });
+    logger.debug("queryPermissionAuditor called", { query, event, orgId , locale , userId});
 
     const resp = await fetch('https://forgeapps.clovity.com/v0/api/query', {
       method: 'POST',
@@ -84,7 +84,7 @@ resolver.define('queryPermissionAuditor', async ({ payload }) => {
         'x-api-key': process.env.APP_RUNNER_API_KEY,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ query, event, orgId , locale })
+      body: JSON.stringify({ query, event, orgId , locale, userId })
     });
 
     logger.info("Upstream response received", { status: resp.status, ok: resp.ok });
