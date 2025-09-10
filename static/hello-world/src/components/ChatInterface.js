@@ -177,7 +177,7 @@ export default function ChatInterface({
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       console.error('Error sending message:', error);
-      const errorMessage = { id: Date.now() + 1, type: 'error', content: 'Sorry, I encountered an error. Please try again.', timestamp: new Date().toLocaleTimeString(locale?.split('_')[0] || 'en') };
+      const errorMessage = { id: Date.now() + 1, type: 'error', content: content?.defaultRetry?.retryMessage, timestamp: new Date().toLocaleTimeString(locale?.split('_')[0] || 'en') };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
