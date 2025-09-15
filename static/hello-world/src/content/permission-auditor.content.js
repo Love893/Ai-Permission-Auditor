@@ -37,7 +37,7 @@ const en = {
     run: "Run Permission Audit Assistant",
     rescan: "Rescan",
     analyse: "Analyse",
-    moreApps: "More apps from us",
+    moreApps: "More from us",
     contactUs: "Get in touch",
   },
   moreApps: {
@@ -143,7 +143,7 @@ const fr = {
     run: "Lancer l’assistant d’audit des permissions",
     rescan: "Relancer l’audit",
     analyse: "Analyser",
-    moreApps: "Plus d’apps de notre part",
+    moreApps: "Plus de notre part",
     contactUs: "Nous contacter",
   },
   moreApps: {
@@ -249,7 +249,7 @@ const es = {
     run: "Ejecutar Asistente de Auditoría de Permisos",
     rescan: "Volver a auditar",
     analyse: "Analizar",
-    moreApps: "Más apps nuestras",
+    moreApps: "Más nuestras",
     contactUs: "Ponte en contacto",
   },
   moreApps: {
@@ -356,7 +356,7 @@ const de = {
     run: "Assistent zur Berechtigungsprüfung starten",
     rescan: "Analyse erneut ausführen",
     analyse: "Analysieren",
-    moreApps: "Weitere Apps von uns",
+    moreApps: "Weitere von uns",
     contactUs: "Kontakt aufnehmen",
   },
   moreApps: {
