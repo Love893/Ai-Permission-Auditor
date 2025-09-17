@@ -126,7 +126,7 @@ export default function ChatInterface({
   const [loadingTimeout, setLoadingTimeout] = useState(null);
   const [isMoreAppsOpen, setIsMoreAppsOpen] = useState(false);
   const messagesEndRef = useRef(null);
-  const chatRef = useRef(null);
+  const messageRefs = useRef({});
   const [cloudId, setCloudId] = useState(null);
   const LIMIT = 200;
 
@@ -228,29 +228,35 @@ export default function ChatInterface({
   };
 
   const handleFollowupClick = (f) => setInputValue(f?.question || '');
-  const handleDownloadPdf = async () => {
-    if (!chatRef.current) return;
+  const setMessageRef = (id) => (el) => {
+    if (el) messageRefs.current[id] = el;
+    else delete messageRefs.current[id];
+  }
+
+  const handleDownloadPdf = async (messageId) => {
+    const node = messageRefs.current[messageId];
+    if (!node) return;
     const wrapper = document.createElement('div');
     wrapper.style.padding = '16px';
-    wrapper.style.fontFamily = 'Poppins, Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+    wrapper.style.fontFamily = 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
     wrapper.style.color = '#0f172a';
     const heading = document.createElement('div');
     heading.innerHTML = `
-      <h1 style="margin:0 0 4px 0;">${content?.assistant?.title || 'Permission Auditor Assistant'}</h1>
+      <h2 style="margin:0 0 4px 0;">${content?.assistant?.title || 'Permission Auditor Assistant'}</h2>
       <div style="font-size:12px;color:#475569;margin-bottom:12px;">
-        Transcript • ${new Date().toLocaleString(locale?.split('_')[0] || 'en')}
+        Transcript • ${new Date().toLocaleString((locale || 'en').split('_')[0] || 'en')}
       </div>
       <hr style="border:none;border-top:1px solid #e2e8f0;margin:8px 0 16px 0;" />
     `;
     wrapper.appendChild(heading);
-    wrapper.appendChild(chatRef.current.cloneNode(true));
+    wrapper.appendChild(node.cloneNode(true));
     await html2pdf().set({
-      margin: [10,10,10,10],
-     filename: `permission-auditor-chat-${new Date().toISOString().slice(0,10)}.pdf`,
+      margin: [10, 10, 10, 10],
+      filename: `permission-auditor-chat-${new Date().toISOString().slice(0, 10)}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css','legacy'] }
+      pagebreak: { mode: ['css', 'legacy'] }
     }).from(wrapper).save();
   };
 
@@ -421,13 +427,13 @@ export default function ChatInterface({
                               </div>
 
                               {(m.type === 'bot' && m.content.length > 500 ) && (
-                                <Button size="sm" variant="outline" className="h-7 gap-1 px-2" onClick={handleDownloadPdf}>
+                                <Button size="sm" variant="outline" className="h-7 gap-1 px-2" onClick={()=>handleDownloadPdf(m.id)}>
                                   <Download size={14} /> PDF
                                 </Button>
                               )}
                             </div>
 
-                            <div ref={chatRef}>
+                            <div ref={setMessageRef(m.id)}>
                               {m.type === 'bot' ? (
                                 <div
                                   className={[
