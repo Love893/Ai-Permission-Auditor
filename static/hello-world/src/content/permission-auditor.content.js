@@ -95,7 +95,7 @@ const en = {
   },
   labels: {
     lastScanned: "Last scanned :",
-    scanningProgress: "Auditing project {current} of {total}."
+    scanningProgress: "Scanning {current} Project out of {total} Projects."
   },
   defaultRetry: {
     retryMessage: "Hmm, I couldn’t process that fully. Could you retry your query?"
@@ -201,7 +201,7 @@ const fr = {
   },
   labels: {
     lastScanned: "Dernier audit :",
-    scanningProgress: "Audit du projet {current} sur {total}."
+    scanningProgress: "Analyse du projet {current} sur {total} projets."
   },
   defaultRetry: {
     retryMessage: "Hum, je n’ai pas pu tout traiter. Pouvez-vous relancer votre requête ?"
@@ -308,7 +308,7 @@ const es = {
   },
   labels: {
     lastScanned: "Última auditoría :",
-    scanningProgress: "Auditando el proyecto {current} de {total}."
+    scanningProgress: "Escaneando el proyecto {current} de un total de {total} proyectos."
   },
   defaultRetry: {
     retryMessage: "Mmm, no pude procesarlo por completo. ¿Podrías intentar tu consulta de nuevo?"
@@ -412,7 +412,7 @@ const de = {
   },
   labels: {
     lastScanned: "Zuletzt gescannt:",
-    scanningProgress: "Scanne Projekt {current} von {total}."
+    scanningProgress: "Scanne Projekt {current} von {total}"
   },
   defaultRetry: {
     retryMessage: "Hmm, das konnte ich nicht vollständig verarbeiten. Bitte versuchen Sie Ihre Anfrage erneut."
