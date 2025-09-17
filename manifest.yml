@@ -22,7 +22,7 @@ permissions:
     fetch:
       backend:
         - address: "*.atlassian.net"
-        - https://forgeapps.clovity.com
+        - https://forge.clovity.com
 app:
   runtime:
     name: nodejs22.x

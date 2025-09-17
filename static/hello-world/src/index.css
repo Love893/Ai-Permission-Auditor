@@ -1,3 +1,48 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Make the entire app use Poppins */
+@layer base {
+
+  html,
+  body,
+  #root {
+    @apply !font-sans;
+  }
+}
+
+/* Ensure @tailwind/typography uses the same font */
+@layer components {
+  .prose {
+    font-family: inherit;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;     /* IE 10+ / old Edge */
+    scrollbar-width: none;        /* Firefox */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    width: 0;
+    height: 0;                    /* Chrome/Safari */
+  }
+}
+
+:root {
+  --radius: 1rem;
+}
+
+td:first-child, th:first-child{
+  padding-left: 20px !important;
+  padding-top: 9px !important;
+}
+
+.prose :where(thead th):not(:where([class~=not-prose], [class~=not-prose] *)) {
+  @apply !text-white !bg-blue-600;
+}
+
+.prose :where(strong):not(:where([class~=not-prose], [class~=not-prose] *)) {
+  @apply !text-blue-600;
+}

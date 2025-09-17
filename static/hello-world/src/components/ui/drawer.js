@@ -35,7 +35,7 @@ export function Drawer({ isOpen, onClose, children, title = "Drawer" }) {
       />
       
       {/* Drawer */}
-      <div className="fixed right-0 top-0 h-full w-80 max-w-[90vw] bg-white shadow-2xl z-50 transform translate-x-0 transition-all duration-500 ease-out border-l border-slate-200">
+      <div className="pl-5 fixed right-0 top-0 h-full w-[25rem] max-w-[90vw] bg-white shadow-2xl z-50 transform translate-x-0 transition-all duration-500 ease-out border-l border-slate-200">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>

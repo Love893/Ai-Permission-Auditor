@@ -135,7 +135,7 @@ const start = async () => {
       console.error('Failed to persist lastScannedAt to Forge storage:', e);
     }
 
-    setRunStatus('✅ Completed.');
+    setRunStatus(' ');
     setRunLoading(false);
     setShowChat(true);
     return true;

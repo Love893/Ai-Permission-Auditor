@@ -1,3 +1,4 @@
+
 import * as React from "react";
 import { cn } from "../../lib/utils";
 
@@ -12,7 +13,7 @@ export const Button = React.forwardRef(
       icon: "h-10 w-10",
     };
     const variants = {
-      default: "bg-blue-600 text-white hover:bg-blue-700 hover:text-white focus:ring-blue-400",
+      default: "bg-blue-600 text-white hover:text-white",
       outline:
         "bg-transparent text-slate-900 border border-slate-300 hover:bg-slate-50 focus:ring-slate-300",
       ghost: "bg-transparent hover:bg-slate-100",
