@@ -218,7 +218,7 @@ resolver.define('getAllIssuesForProject', async ({ payload }) => {
 };
 
 
-      const response = await api.asApp().requestJira(route`/rest/api/3/search/jql`, {
+      const response = await api.asUser().requestJira(route`/rest/api/3/search/jql`, {
         method: "POST",
         headers: { "Accept": "application/json", "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -267,7 +267,7 @@ resolver.define('getAllJiraUsers', async () => {
     // logger.info("Starting to fetch all Jira users");
 
     while (true) {
-      const res = await api.asApp().requestJira(
+      const res = await api.asUser().requestJira(
         route`/rest/api/3/users/search?startAt=${startAt}&maxResults=${CONFIG.PAGE_SIZE_USERS}`,
         { headers: { Accept: 'application/json' } }
       );
@@ -319,7 +319,7 @@ resolver.define('getAllJiraProjects', async () => {
     // logger.info("Starting to fetch all Jira projects");
 
     while (true) {
-      const res = await api.asApp().requestJira(
+      const res = await api.asUser().requestJira(
         route`/rest/api/3/project/search?startAt=${startAt}&maxResults=${CONFIG.PAGE_SIZE_PROJECTS}&typeKey=software`,
         { headers: { Accept: 'application/json' } }
       );
@@ -365,7 +365,7 @@ resolver.define('getAllPermissions', async () => {
   try {
     // logger.info("Fetching all Jira permissions");
 
-    const res = await api.asApp().requestJira(route`/rest/api/3/permissions`, {
+    const res = await api.asUser().requestJira(route`/rest/api/3/permissions`, {
       headers: { Accept: 'application/json' },
     });
 
@@ -415,7 +415,7 @@ resolver.define('checkUserPermissions', async ({ payload }) => {
 
     // logger.info("Checking global permissions for user", { accountId, displayName });
 
-    const res = await api.asApp().requestJira(route`/rest/api/3/permissions/check`, {
+    const res = await api.asUser().requestJira(route`/rest/api/3/permissions/check`, {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ accountId, globalPermissions }),
@@ -459,7 +459,7 @@ resolver.define('getProjectPermissionScheme', async ({ payload }) => {
 
     // logger.info("Fetching permission scheme for project", { projectKeyOrId });
 
-    const res = await api.asApp().requestJira(
+    const res = await api.asUser().requestJira(
       route`/rest/api/3/project/${projectKeyOrId}/permissionscheme`,
       { headers: { Accept: 'application/json' } }
     );
@@ -495,7 +495,7 @@ resolver.define('getRoleIdScheme', async ({ payload }) => {
 
     // logger.info("Fetching role details for project", { projectKeyOrId });
 
-    const res = await api.asApp().requestJira(
+    const res = await api.asUser().requestJira(
       route`/rest/api/3/project/${projectKeyOrId}/roledetails`,
       { headers: { Accept: 'application/json' } }
     );
@@ -531,7 +531,7 @@ resolver.define('getRoleUsersScheme', async ({ payload }) => {
 
     // logger.info("Fetching role users for project", { projectKeyOrId, roleId });
 
-    const res = await api.asApp().requestJira(
+    const res = await api.asUser().requestJira(
       route`/rest/api/3/project/${projectKeyOrId}/role/${roleId}`,
       { headers: { Accept: 'application/json' } }
     );
@@ -573,7 +573,7 @@ resolver.define('getGroupsOnAccId', async ({ payload }) => {
 
     // logger.info("Fetching groups for account", { accountId });
 
-    const res = await api.asApp().requestJira(
+    const res = await api.asUser().requestJira(
       route`/rest/api/3/user/groups?accountId=${accountId}`,
       { headers: { Accept: 'application/json' } }
     );
