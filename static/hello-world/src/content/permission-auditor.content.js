@@ -1,15 +1,15 @@
 const en = {
   heroTitle: "Welcome to Permission Auditor",
-  heroSubtitle: "Audit Jira permissions, spot risks, and ensure least-privilege access.",
+  heroSubtitle: "Audit Jira permissions, spot risks and ensure least-privilege access.",
   specRows: [
     {
       id: "solves", label: "What it solves:", links: [
-        "Permission sprawl, risky admin access, unclear project roles, audit fatigue, and compliance gaps."
+        "Permission sprawl, risky admin access, unclear project roles, audit fatigue and compliance gaps."
       ]
     },
     {
       id: "who", label: "Who it’s for:", links: [
-        "Admins, Security/Compliance, Project Leads, IT Governance, and Enterprise PMOs."
+        "Admins, Security/Compliance, Project Leads, IT Governance and Enterprise PMOs."
       ]
     },
     {
@@ -19,7 +19,7 @@ const en = {
     },
     {
       id: "ai", label: "AI in action:", links: [
-        "Highlight risky permissions, suggest safer roles, detect unused admins, and recommend cleanup."
+        "Highlight risky permissions, suggest safer roles, detect unused admins and recommend cleanup."
       ]
     },
     {
@@ -36,7 +36,7 @@ const en = {
   ctas: {
     run: "Run Permission Audit Assistant",
     rescan: "Rescan",
-    analyse: "Analyse",
+    analyse: "Analyze",
     moreApps: "More from us",
     contactUs: "Get in touch",
   },
@@ -49,7 +49,7 @@ const en = {
   },
   assistant: {
     title: "Welcome to Permission Audit Assistant",
-    subtitle: "Questions on access, roles, or risks?",
+    subtitle: "Questions on access, roles or risks?",
     quickActions: [
       { id: "admins", label: "Find users with Admin access", icon: "search" },
       { id: "roles", label: "Audit project roles", icon: "users" },
@@ -74,7 +74,7 @@ const en = {
       "🔄 Scanning all permission schemes...",
       "🛡️ Auditing user roles and access rights...",
       "🔍 Checking for hidden admin privileges...",
-      "📊 Mapping users, groups, and roles...",
+      "📊 Mapping users, groups and roles...",
       "🚦 Detecting risky permission overlaps...",
       "🧩 Piecing together project access levels...",
       "⚙️ Reviewing global vs. project permissions...",

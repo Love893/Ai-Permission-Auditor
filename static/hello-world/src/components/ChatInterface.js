@@ -128,7 +128,7 @@ export default function ChatInterface({
   const messagesEndRef = useRef(null);
   const messageRefs = useRef({});
   const [cloudId, setCloudId] = useState(null);
-  const LIMIT = 200;
+  const LIMIT = 400;
 
   const handleInputChange = (e) => {
   const next = e.target.value.slice(0, LIMIT);
@@ -327,7 +327,7 @@ export default function ChatInterface({
                         {content?.ctas?.rescan || 'Rescan'}
                       </Button>
                       <Button onClick={resetToChat} disabled={runLoading} className="!rounded-[3px]">
-                        {content?.ctas?.analyse || 'Analyse'}
+                        {content?.ctas?.analyse || 'Analyze'}
                       </Button>
                     </div>
 
