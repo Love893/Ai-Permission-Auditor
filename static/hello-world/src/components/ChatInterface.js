@@ -331,7 +331,12 @@ export default function ChatInterface({
                       </Button>
                     </div>
 
-                    {parseProgressFromStatus(runStatus) && (
+                    
+                  </>
+                )}
+
+
+                {parseProgressFromStatus(runStatus) && (
                       <div className="w-[300px]">
                         <Progress value={parseProgressFromStatus(runStatus).pct} />
                         <div className="mt-1 text-center text-[12px] text-muted-foreground">
@@ -344,8 +349,6 @@ export default function ChatInterface({
                         </div>
                       </div>
                     )}
-                  </>
-                )}
 
                 {runStatus && !parseProgressFromStatus(runStatus) && (
                   <div className="text-sm">{runStatus}</div>

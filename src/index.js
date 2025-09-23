@@ -207,7 +207,7 @@ resolver.define('getAllIssuesForProject', async ({ payload }) => {
     let isLast = false;
 
     // Keep ORDER BY stable for consistent pagination
-    const jql = `project = ${projectKey} ORDER BY created ASC`;
+    const jql = `project = '${projectKey}' ORDER BY created ASC`;
 
     while (!isLast) {
      const body = {
