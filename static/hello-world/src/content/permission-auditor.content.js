@@ -98,8 +98,11 @@ const en = {
     scanningProgress: "Scanning {current} Project out of {total} Projects."
   },
   defaultRetry: {
-    retryMessage: "Hmm, I couldn’t process that fully. Could you retry your query?"
-  }
+    retryMessage: "Hmm, I couldn’t process that fully. Could you retry your query?  "
+  },
+  ragRetry: {
+    retryMessageRag: "I couldn't find anything in our knowledge base for that query. Please check the spelling or try a more specific question."
+  },
 };
 
 
@@ -205,7 +208,10 @@ const fr = {
   },
   defaultRetry: {
     retryMessage: "Hum, je n’ai pas pu tout traiter. Pouvez-vous relancer votre requête ?"
-  }
+  },
+  ragRetry: {
+    retryMessageRag: "Je n’ai rien trouvé dans notre base de connaissances pour cette requête. Veuillez vérifier l’orthographe ou poser une question plus précise."
+  },
 };
 
 
@@ -312,7 +318,10 @@ const es = {
   },
   defaultRetry: {
     retryMessage: "Mmm, no pude procesarlo por completo. ¿Podrías intentar tu consulta de nuevo?"
-  }
+  },
+  ragRetry: {
+    retryMessageRag: "No encontré nada en nuestra base de conocimientos para esa consulta. Por favor, verifica la ortografía o intenta con una pregunta más específica."
+  },
 };
 
 
@@ -416,7 +425,10 @@ const de = {
   },
   defaultRetry: {
     retryMessage: "Hmm, das konnte ich nicht vollständig verarbeiten. Bitte versuchen Sie Ihre Anfrage erneut."
-  }
+  },
+  ragRetry: {
+    retryMessageRag: "Für diese Anfrage konnte ich in unserer Wissensdatenbank nichts finden. Bitte überprüfen Sie die Rechtschreibung oder stellen Sie eine spezifischere Frage."
+  },
 };
 
 

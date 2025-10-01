@@ -214,6 +214,16 @@ export default function ChatInterface({
         followups = Array.isArray(result.followups) ? result.followups : [];
       }
 
+      if (response?.success === false) {
+        const err = String(response?.error ?? "");
+        if (/RAG query failed|No relevant context found/i.test(err)) {
+          answer = content?.ragRetry?.retryMessageRag
+        } else {
+          answer = content?.defaultRetry?.retryMessage
+        }
+      }
+
+
       const botMessage = { id: Date.now() + 1, type: 'bot', content: answer, followups, timestamp: new Date().toLocaleTimeString(locale?.split('_')[0] || 'en') };
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
