@@ -78,7 +78,7 @@ resolver.define('queryPermissionAuditor', async ({ payload }) => {
 
     logger.debug("queryPermissionAuditor called", { query, event, orgId , locale , userId});
 
-    const resp = await fetch('https://forgeapps.clovity.com/v0/api/query', {
+    const resp = await fetch('https://forge.clovity.com/v0/api/query', {
       method: 'POST',
       headers: {
         'x-api-key': process.env.APP_RUNNER_API_KEY,
@@ -165,7 +165,7 @@ resolver.define('sendToUploadService', async ({ payload }) => {
     logger.info("Payload size before sending to SQS", { sizeKB: payloadSizeKB, length: payloadString.length });
     logger.debug("Payload JSON", { payload: payloadData });
 
-    const res = await fetch('https://forgeapps.clovity.com/v0/api/sqs/send', {
+    const res = await fetch('https://forge.clovity.com/v0/api/sqs/send', {
       method: 'POST',
       headers: {
         'x-api-key': process.env.APP_RUNNER_API_KEY,
