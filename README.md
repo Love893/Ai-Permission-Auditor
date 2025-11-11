@@ -1,6 +1,6 @@
 # Permission Auditor - Jira Forge App
 
-A comprehensive Jira Forge application that analyzes user and project permissions, detects over-privileged roles, flags dormant admins, and provides AI-powered insights for maintaining least-privilege governance and security compliance in Jira.
+A comprehensive Jira Forge application that analyzes user and project permissions, detects over-privileged roles, flags dormant admins and provides AI-powered insights for maintaining least-privilege governance and security compliance in Jira.
 
 ## 🎯 What It Solves
 -**Role Risk Audit**: Scans global permission schemes to detect over-permissioned users.
@@ -16,13 +16,13 @@ A comprehensive Jira Forge application that analyzes user and project permission
 ## 🏗️ Architecture
 
 ### Backend (Forge Functions)
--**Project Permission Processing**: Fetches and analyzes Jira projects, roles, and user permissions.
+-**Project Permission Processing**: Fetches and analyzes Jira projects, roles and user permissions.
 
--**User & Role Data Aggregation**: Summarizes project permissions, global permissions, and user activity.
+-**User & Role Data Aggregation**: Summarizes project permissions, global permissions and user activity.
 
 -**SQS/Upload Service**: Sends processed permission data to external analysis or reporting service.
 
--**Storage & Audit Trail**: Tracks last scan timestamps, remediation history, and user preferences.
+-**Storage & Audit Trail**: Tracks last scan timestamps, remediation history and user preferences.
 
 ## Frontend (Forge React App)
 
@@ -49,7 +49,7 @@ A comprehensive Jira Forge application that analyzes user and project permission
 
 ## AI Assistant
 
--**Natural Language Queries**: Ask questions about access risks, compliance, or role justifications.
+-**Natural Language Queries**: Ask questions about access risks, compliance or role justifications.
 
 -**Policy Matching**: Checks user access against org-defined rules or least-privilege baselines.
 
@@ -172,7 +172,7 @@ npm run lint
 
 -Monitor progress with real-time audit status updates
 
--Review results in the interactive dashboard with filters by project, group, or user
+-Review results in the interactive dashboard with filters by project, group or user
 
 ### 3. AI Assistant
 
@@ -277,7 +277,7 @@ npm run lint
 
 -**Documentation**: Forge Developer Portal
 
--**Issues**: Report bugs, feature requests, or audit mismatches via GitHub Issues
+-**Issues**: Report bugs, feature requests or audit mismatches via GitHub Issues
 
 -**Community**: Join the Atlassian Community
  for discussions

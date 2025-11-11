@@ -4,13 +4,19 @@ modules:
       resource: main
       resolver:
         function: resolver
-      title: AI Permission Auditor
+      title: Security & Access Audits - Clovity AI Copilot for Jira
+      icon:  resource:assets;logo1.png
+
   function:
     - key: resolver
       handler: index.handler
 resources:
   - key: main
     path: static/hello-world/build
+
+  - key: assets
+    path: static/assets
+
 permissions:
   scopes:
     - read:jira-work
@@ -21,7 +27,6 @@ permissions:
   external:
     fetch:
       backend:
-        - address: "*.atlassian.net"
         - https://forge.clovity.com
 app:
   runtime:

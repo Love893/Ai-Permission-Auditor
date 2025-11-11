@@ -327,7 +327,7 @@ export default function ChatInterface({
                         {content?.ctas?.rescan || 'Rescan'}
                       </Button>
                       <Button onClick={resetToChat} disabled={runLoading} className="!rounded-[3px]">
-                        {content?.ctas?.analyse || 'Analyse'}
+                        {content?.ctas?.analyse || 'Analyze'}
                       </Button>
                     </div>
 
